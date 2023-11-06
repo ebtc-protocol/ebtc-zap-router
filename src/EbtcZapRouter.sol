@@ -29,7 +29,28 @@ contract EbtcZapRouter {
         bytes32 _r,
         bytes32 _s
     ) external {
-         // Check token balances of Zap before operation
+         _openCdp(
+            _debt,
+            _upperHint,
+            _lowerHint,
+            _stEthBalance,
+            _deadline,
+            _v,
+            _r,
+            _s);
+    }
+
+    function _openCdp(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _stEthBalance,
+        uint256 _deadline,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
+    ) internal {
+        // Check token balances of Zap before operation
 
         stEth.transferFrom(msg.sender, address(this), _stEthBalance);
         

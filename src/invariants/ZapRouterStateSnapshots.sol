@@ -38,7 +38,6 @@ abstract contract ZapRouterStateSnapshots is ZapRouterBaseStorageVariables {
         bool lastGracePeriodStartTimestampIsSet;
         bool hasGracePeriodPassed;
         uint256 systemDebtRedistributionIndex;
-
     }
 
     struct ZapRouterState {
