@@ -1,19 +1,27 @@
-## Foundry
+# Ebtc Zap Router
+Route between different zaps and functionality.
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+## Key Functions
+* One-click Leverage: use flash loans via leverage macro to lever loop in one action
+* Flippening: a wrapper on leverage where you sell the final eBTC for more stETH (lever long ETH)
+* Native ETH: Deposit from native ETH and auto-wrap into stETH
+* ETH Variants deposits: come from WETH and wstETH as well for convenience
 
-Foundry consists of:
-
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
+## User stories
+- User starts from ETH, stETH, wstETH, WETH
+- Use applies leverage or not
+- User swaps their final eBTC debt for stETH or not
 
 ## Usage
+
+### Install
+Install Foundry and complete yarn install in dependency eBTC repo.
+```shell
+$ forge install
+$ cd lib/ebtc 
+$ yarn
+$ cd ../../
+```
 
 ### Build
 
@@ -39,28 +47,3 @@ $ forge fmt
 $ forge snapshot
 ```
 
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
