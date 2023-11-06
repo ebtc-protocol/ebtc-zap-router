@@ -3,16 +3,17 @@ pragma solidity ^0.8.13;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {EbtcZapRouter} from "../src/EbtcZapRouter.sol";
+import {ZapRouterBaseStorageVariables} from "../src/invariants/ZapRouterBaseStorageVariables.sol";
 import {eBTCBaseInvariants} from "@ebtc/foundry_test/BaseInvariants.sol";
 import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
-import {ZapRouterBaseStorageVariables} from "../src/invariants/ZapRouterBaseStorageVariables.sol";
+import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 
 contract ZapRouterBaseInvariants is eBTCBaseInvariants, ZapRouterBaseStorageVariables {
 
     function setUp() public override virtual {
         super.setUp();
-        zapRouter = new EbtcZapRouter(IBorrowerOperations(address(borrowerOperations)));
+        zapRouter = new EbtcZapRouter(IERC20(address(collateral)), IERC20(address(eBTCToken)), IBorrowerOperations(address(borrowerOperations)));
     }
 
     function _ensureZapInvariants() internal {

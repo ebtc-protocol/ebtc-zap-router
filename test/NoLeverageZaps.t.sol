@@ -38,6 +38,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         bytes32 digest = _generatePermitSignature(user, address(zapRouter), _approval, _deadline);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivateKey, digest);
 
+        collateral.approve(address(zapRouter), type(uint256).max);
+
         // Get before balances
 
         // Zap Open Cdp
@@ -52,9 +54,22 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             s
         );
 
-        // Confirm Cdp opened
+        // Confirm Cdp opened for user
+        bytes32[] memory userCdps = sortedCdps.getCdpsOf(user);
+        assertEq(userCdps.length, 1, "User should have 1 cdp");
+
         // Confirm Zap has no cdps
+        bytes32[] memory zapCdps = sortedCdps.getCdpsOf(address(zapRouter));
+        assertEq(zapCdps.length, 0, "Zap should not have a Cdp");
+
         // Confirm Zap has no coins
+        assertEq(collateral.balanceOf(address(zapRouter)), 0, "Zap should have no stETH balance");
+        assertEq(collateral.sharesOf(address(zapRouter)), 0, "Zap should have no stETH shares");
+        assertEq(eBTCToken.balanceOf(address(zapRouter)), 0, "Zap should have no eBTC");
+
+        // Confirm PM approvals are cleared
+        uint positionManagerApproval = uint256(borrowerOperations.getPositionManagerApproval(user, address(zapRouter)));
+        assertEq(positionManagerApproval, uint256(IPositionManagers.PositionManagerApproval.None), "Zap should have no PM approval after operation");
 
         vm.stopPrank();
 

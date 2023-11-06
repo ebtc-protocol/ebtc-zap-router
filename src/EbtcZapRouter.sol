@@ -3,12 +3,20 @@ pragma solidity ^0.8.17;
 
 import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
+import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 
 contract EbtcZapRouter {
-    IBorrowerOperations immutable borrowerOperations;
+    IERC20 public immutable stEth;
+    IERC20 public immutable ebtc;
+    IBorrowerOperations public immutable borrowerOperations;
 
-    constructor(IBorrowerOperations _borrowerOperations) {
+    constructor(IERC20 _stEth, IERC20 _ebtc, IBorrowerOperations _borrowerOperations) {
+        stEth = _stEth;
+        ebtc = _ebtc;
         borrowerOperations = _borrowerOperations;
+
+        // Infinite Approvals @TODO: do these stay at max for each token?
+        stEth.approve(address(borrowerOperations), type(uint256).max);
     }
 
     function openCdp(
@@ -21,7 +29,10 @@ contract EbtcZapRouter {
         bytes32 _r,
         bytes32 _s
     ) external {
-        // Check token balances of Zap before operation
+         // Check token balances of Zap before operation
+
+        stEth.transferFrom(msg.sender, address(this), _stEthBalance);
+        
         borrowerOperations.permitPositionManagerApproval(
             msg.sender,
             address(this),
@@ -32,7 +43,9 @@ contract EbtcZapRouter {
             _s
         );
 
-        borrowerOperations.getPositionManagerApproval(msg.sender, address(this));
+        borrowerOperations.openCdpFor(_debt, _upperHint, _lowerHint, _stEthBalance, msg.sender);
+
+        ebtc.transfer(msg.sender, _debt);
 
         // Token balances should not have changed after operation
         // Created CDP should be owned by borrower
