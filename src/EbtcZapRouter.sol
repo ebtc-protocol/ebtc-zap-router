@@ -1,23 +1,34 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
-import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
+import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
+import {LeverageMacroBase} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {IEbtcZapRouter} from "./interface/IEbtcZapRouter.sol";
 
-contract EbtcZapRouter is IEbtcZapRouter {
-    IERC20 public immutable stEth;
-    IERC20 public immutable ebtc;
-    IBorrowerOperations public immutable borrowerOperations;
+contract EbtcZapRouter is LeverageMacroBase, IEbtcZapRouter {
+    address internal immutable OWNER;
 
-    constructor(IERC20 _stEth, IERC20 _ebtc, IBorrowerOperations _borrowerOperations) {
-        stEth = _stEth;
-        ebtc = _ebtc;
-        borrowerOperations = _borrowerOperations;
+    constructor(DeploymentParams memory params) 
+        LeverageMacroBase(
+            params.borrowerOperations,
+            params.activePool,
+            params.cdpManager,
+            params.ebtc,
+            params.stEth,
+            params.sortedCdps,
+            true     
+        ) {
+        OWNER = msg.sender;
 
         // Infinite Approvals @TODO: do these stay at max for each token?
-        stEth.approve(address(borrowerOperations), type(uint256).max);
+        ebtcToken.approve(address(borrowerOperations), type(uint256).max);
+        stETH.approve(address(borrowerOperations), type(uint256).max);
+        stETH.approve(address(activePool), type(uint256).max);
+    }
+
+    function owner() public override returns (address) {
+        return OWNER;
     }
 
     function openCdp(
@@ -81,9 +92,9 @@ contract EbtcZapRouter is IEbtcZapRouter {
     ) internal {
         // Check token balances of Zap before operation
 
-        stEth.transferFrom(msg.sender, address(this), _stEthBalance);
+        stETH.transferFrom(msg.sender, address(this), _stEthBalance);
         
-        borrowerOperations.permitPositionManagerApproval(
+        IPositionManagers(address(borrowerOperations)).permitPositionManagerApproval(
             msg.sender,
             address(this),
             IPositionManagers.PositionManagerApproval.OneTime,
@@ -95,7 +106,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
 
         borrowerOperations.openCdpFor(_debt, _upperHint, _lowerHint, _stEthBalance, msg.sender);
 
-        ebtc.transfer(msg.sender, _debt);
+        ebtcToken.transfer(msg.sender, _debt);
 
         // Token balances should not have changed after operation
         // Created CDP should be owned by borrower

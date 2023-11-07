@@ -8,12 +8,20 @@ import {eBTCBaseInvariants} from "@ebtc/foundry_test/BaseInvariants.sol";
 import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
+import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
 
 contract ZapRouterBaseInvariants is eBTCBaseInvariants, ZapRouterBaseStorageVariables {
 
     function setUp() public override virtual {
         super.setUp();
-        zapRouter = new EbtcZapRouter(IERC20(address(collateral)), IERC20(address(eBTCToken)), IBorrowerOperations(address(borrowerOperations)));
+        zapRouter = new EbtcZapRouter(IEbtcZapRouter.DeploymentParams({
+            borrowerOperations: address(borrowerOperations),
+            activePool: address(activePool),
+            cdpManager: address(cdpManager),
+            ebtc: address(eBTCToken),
+            stEth: address(collateral),
+            sortedCdps: address(sortedCdps)
+        }));
     }
 
     function _ensureZapInvariants() internal {

@@ -9,6 +9,15 @@ interface IEbtcZapRouter {
         bytes32 s;       
     }
 
+    struct DeploymentParams {
+        address borrowerOperations;
+        address activePool;
+        address cdpManager;
+        address ebtc;
+        address stEth;
+        address sortedCdps;
+    }
+
     function openCdp(
         uint256 _debt,
         bytes32 _upperHint,
