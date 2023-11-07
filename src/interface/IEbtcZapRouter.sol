@@ -16,6 +16,8 @@ interface IEbtcZapRouter {
         address ebtc;
         address stEth;
         address sortedCdps;
+        address priceFeed;
+        address dex;
     }
 
     function openCdp(

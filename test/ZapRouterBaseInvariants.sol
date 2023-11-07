@@ -8,19 +8,26 @@ import {eBTCBaseInvariants} from "@ebtc/foundry_test/BaseInvariants.sol";
 import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
+import {Mock1Inch} from "@ebtc/contracts/TestContracts/Mock1Inch.sol";
 import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
 
 contract ZapRouterBaseInvariants is eBTCBaseInvariants, ZapRouterBaseStorageVariables {
+    Mock1Inch internal mockDex;
 
     function setUp() public override virtual {
         super.setUp();
+
+        mockDex = new Mock1Inch(address(eBTCToken), address(collateral));
+
         zapRouter = new EbtcZapRouter(IEbtcZapRouter.DeploymentParams({
             borrowerOperations: address(borrowerOperations),
             activePool: address(activePool),
             cdpManager: address(cdpManager),
             ebtc: address(eBTCToken),
             stEth: address(collateral),
-            sortedCdps: address(sortedCdps)
+            sortedCdps: address(sortedCdps),
+            priceFeed: address(priceFeedMock),
+            dex: address(mockDex)
         }));
     }
 
