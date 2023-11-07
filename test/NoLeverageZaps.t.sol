@@ -6,6 +6,7 @@ import {EbtcZapRouter} from "../src/EbtcZapRouter.sol";
 import {ZapRouterBaseInvariants} from "./ZapRouterBaseInvariants.sol";
 import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
+import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
 
 
 contract NoLeverageZaps is ZapRouterBaseInvariants {
@@ -38,6 +39,13 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         bytes32 digest = _generatePermitSignature(user, address(zapRouter), _approval, _deadline);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivateKey, digest);
 
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = IEbtcZapRouter.PositionManagerPermit(
+            _deadline,
+            v,
+            r,
+            s
+        );
+
         collateral.approve(address(zapRouter), type(uint256).max);
 
         // Get before balances
@@ -48,10 +56,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             bytes32(0),
             bytes32(0),
             stEthBalance + 0.2 ether,
-            _deadline,
-            v,
-            r,
-            s
+            pmPermit
         );
 
         // Confirm Cdp opened for user

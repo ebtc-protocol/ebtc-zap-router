@@ -4,8 +4,9 @@ pragma solidity ^0.8.17;
 import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
+import {IEbtcZapRouter} from "./interface/IEbtcZapRouter.sol";
 
-contract EbtcZapRouter {
+contract EbtcZapRouter is IEbtcZapRouter {
     IERC20 public immutable stEth;
     IERC20 public immutable ebtc;
     IBorrowerOperations public immutable borrowerOperations;
@@ -24,31 +25,59 @@ contract EbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _stEthBalance,
-        uint256 _deadline,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s
+        PositionManagerPermit memory _positionManagerPermit
     ) external {
-         _openCdp(
+         _openCdpWithPermit(
             _debt,
             _upperHint,
             _lowerHint,
             _stEthBalance,
-            _deadline,
-            _v,
-            _r,
-            _s);
+            _positionManagerPermit
+        );
     }
 
-    function _openCdp(
+    function openCdpWithEth(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _ethBalance,
+        PositionManagerPermit memory _positionManagerPermit
+    ) external payable {
+        require(msg.value == _ethBalance, "EbtcZapRouter: Incorrect ETH amount");
+        // Deposit to stEth
+    }
+
+    function openCdpWithWeth(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _wethBalance,
+        PositionManagerPermit memory _positionManagerPermit
+    ) external {
+        // WETH -> ETH -> stETH
+    }
+
+    /// @notice Open CDP with WstETH as input token
+    /// @param _debt Amount of debt to generate
+    /// @param _upperHint Upper hint for CDP opening
+    /// @param _lowerHint Lower hint for CDP opening
+    /// @param _wstEthBalance Amount of WstETH to use. Will be converted to an stETH balance.
+    function openCdpWithWstEth(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _wstEthBalance,
+        PositionManagerPermit memory _positionManagerPermit
+    ) external {
+        // Unwrap to stETH
+    }
+
+    function _openCdpWithPermit(
         uint256 _debt,
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _stEthBalance,
-        uint256 _deadline,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s
+        PositionManagerPermit memory _positionManagerPermit
     ) internal {
         // Check token balances of Zap before operation
 
@@ -58,10 +87,10 @@ contract EbtcZapRouter {
             msg.sender,
             address(this),
             IPositionManagers.PositionManagerApproval.OneTime,
-            _deadline,
-            _v,
-            _r,
-            _s
+            _positionManagerPermit.deadline,
+            _positionManagerPermit.v,
+            _positionManagerPermit.r,
+            _positionManagerPermit.s
         );
 
         borrowerOperations.openCdpFor(_debt, _upperHint, _lowerHint, _stEthBalance, msg.sender);
