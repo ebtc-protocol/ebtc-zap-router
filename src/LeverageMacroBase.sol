@@ -34,8 +34,7 @@ contract LeverageMacroBase {
     ICollateralToken public immutable stETH;
     bool internal immutable willSweep;
 
-    bytes32 constant FLASH_LOAN_SUCCESS =
-        keccak256("ERC3156FlashBorrower.onFlashLoan");
+    bytes32 constant FLASH_LOAN_SUCCESS = keccak256("ERC3156FlashBorrower.onFlashLoan");
 
     function owner() public virtual returns (address) {
         revert("Must be overridden");
@@ -160,7 +159,7 @@ contract LeverageMacroBase {
             );
         } else {
             // No leverage, just do the operation
-            _handleOperation(operation, 0);
+            _handleOperation(operation);
         }
 
         /**
@@ -172,9 +171,7 @@ contract LeverageMacroBase {
             // initialCdpIndex is initialCdpIndex + 1
             bytes32 cdpId = sortedCdps.cdpOfOwnerByIndex(
                 // Check if openCdpFor was called
-                checkParams.borrower == address(0)
-                    ? address(this)
-                    : checkParams.borrower,
+                checkParams.borrower == address(0) ? address(this) : checkParams.borrower,
                 initialCdpIndex
             );
 
@@ -190,9 +187,7 @@ contract LeverageMacroBase {
 
         // Update CDP, Ensure the stats are as intended
         if (postCheckType == PostOperationCheck.cdpStats) {
-            ICdpManagerData.Cdp memory cdpInfo = cdpManager.Cdps(
-                checkParams.cdpId
-            );
+            ICdpManagerData.Cdp memory cdpInfo = cdpManager.Cdps(checkParams.cdpId);
 
             _doCheckValueType(checkParams.expectedDebt, cdpInfo.debt);
             _doCheckValueType(checkParams.expectedCollateral, cdpInfo.coll);
@@ -204,9 +199,7 @@ contract LeverageMacroBase {
 
         // Post check type: Close, ensure it has the status we want
         if (postCheckType == PostOperationCheck.isClosed) {
-            ICdpManagerData.Cdp memory cdpInfo = cdpManager.Cdps(
-                checkParams.cdpId
-            );
+            ICdpManagerData.Cdp memory cdpInfo = cdpManager.Cdps(checkParams.cdpId);
 
             require(
                 cdpInfo.status == checkParams.expectedStatus,
@@ -216,13 +209,17 @@ contract LeverageMacroBase {
 
         // Sweep here if it's Reference, do not if it's delegate
         if (willSweep) {
-            sweepToCaller();
+            _sweepToCaller();
         }
     }
 
     /// @notice Sweep away tokens if they are stuck here
-    function sweepToCaller() public {
+    function sweepToOwner() public {
         _assertOwner();
+        _sweepToCaller();
+    }
+
+    function _sweepToCaller() private {
         /**
          * SWEEP TO CALLER *
          */
@@ -251,28 +248,16 @@ contract LeverageMacroBase {
     ///     >= you prob use this one
     ///     <= if you don't need >= you go for lte
     ///     And if you really need eq, it's third
-    function _doCheckValueType(
-        CheckValueAndType memory check,
-        uint256 valueToCheck
-    ) internal {
+    function _doCheckValueType(CheckValueAndType memory check, uint256 valueToCheck) internal {
         if (check.operator == Operator.skip) {
             // Early return
             return;
         } else if (check.operator == Operator.gte) {
-            require(
-                check.value >= valueToCheck,
-                "!LeverageMacroReference: gte post check"
-            );
+            require(check.value >= valueToCheck, "!LeverageMacroReference: gte post check");
         } else if (check.operator == Operator.lte) {
-            require(
-                check.value <= valueToCheck,
-                "!LeverageMacroReference: let post check"
-            );
+            require(check.value <= valueToCheck, "!LeverageMacroReference: let post check");
         } else if (check.operator == Operator.equal) {
-            require(
-                check.value == valueToCheck,
-                "!LeverageMacroReference: equal post check"
-            );
+            require(check.value == valueToCheck, "!LeverageMacroReference: equal post check");
         } else {
             revert("Operator not found");
         }
@@ -310,10 +295,7 @@ contract LeverageMacroBase {
     }
 
     /// @dev Must be memory since we had to decode it
-    function _handleOperation(
-        LeverageMacroOperation memory operation,
-        uint256 fee
-    ) internal {
+    function _handleOperation(LeverageMacroOperation memory operation) internal {
         uint256 beforeSwapsLength = operation.swapsBefore.length;
         if (beforeSwapsLength > 0) {
             _doSwaps(operation.swapsBefore);
@@ -321,12 +303,10 @@ contract LeverageMacroBase {
 
         // Based on the type we do stuff
         if (operation.operationType == OperationType.OpenCdpOperation) {
-            _openCdpCallback(operation.OperationData, fee);
+            _openCdpCallback(operation.OperationData);
         } else if (operation.operationType == OperationType.CloseCdpOperation) {
             _closeCdpCallback(operation.OperationData);
-        } else if (
-            operation.operationType == OperationType.AdjustCdpOperation
-        ) {
+        } else if (operation.operationType == OperationType.AdjustCdpOperation) {
             _adjustCdpCallback(operation.OperationData);
         }
 
@@ -363,13 +343,8 @@ contract LeverageMacroBase {
     }
 
     /// @notice Convenience function to parse bytes into LeverageMacroOperation data
-    function decodeFLData(
-        bytes calldata data
-    ) public view returns (LeverageMacroOperation memory) {
-        LeverageMacroOperation memory leverageMacroData = abi.decode(
-            data,
-            (LeverageMacroOperation)
-        );
+    function decodeFLData(bytes calldata data) public view returns (LeverageMacroOperation memory) {
+        LeverageMacroOperation memory leverageMacroData = abi.decode(data, (LeverageMacroOperation));
         return leverageMacroData;
     }
 
@@ -382,10 +357,7 @@ contract LeverageMacroBase {
         bytes calldata data
     ) external returns (bytes32) {
         // Verify we started the FL
-        require(
-            initiator == address(this),
-            "LeverageMacroReference: wrong initiator for flashloan"
-        );
+        require(initiator == address(this), "LeverageMacroReference: wrong initiator for flashloan");
 
         // Ensure the caller is the intended contract
         if (token == address(ebtcToken)) {
@@ -409,7 +381,7 @@ contract LeverageMacroBase {
         // Then we can do multiple hooks and stuff
         LeverageMacroOperation memory operation = decodeFLData(data);
 
-        _handleOperation(operation, fee);
+        _handleOperation(operation);
 
         return FLASH_LOAN_SUCCESS;
     }
@@ -460,10 +432,7 @@ contract LeverageMacroBase {
         // Enforce exact approval
         // Can use max because the tokens are OZ
         // val -> 0 -> 0 -> val means this is safe to repeat since even if full approve is unused, we always go back to 0 after
-        IERC20(swapData.tokenForSwap).safeApprove(
-            swapData.addressForApprove,
-            0
-        );
+        IERC20(swapData.tokenForSwap).safeApprove(swapData.addressForApprove, 0);
 
         // Do the balance checks after the call to the aggregator
         _doSwapChecks(swapData.swapChecks);
@@ -477,9 +446,8 @@ contract LeverageMacroBase {
             for (uint256 i; i < length; ++i) {
                 // > because if you don't want to check for 0, just don't have the check
                 require(
-                    IERC20(swapChecks[i].tokenToCheck).balanceOf(
-                        address(this)
-                    ) > swapChecks[i].expectedMinOut,
+                    IERC20(swapChecks[i].tokenToCheck).balanceOf(address(this)) >
+                        swapChecks[i].expectedMinOut,
                     "LeverageMacroReference: swap check failure!"
                 );
             }
@@ -497,9 +465,10 @@ contract LeverageMacroBase {
     }
 
     /// @dev Must be memory since we had to decode it
-    function _openCdpCallback(bytes memory data, uint256 fee) internal {
+    function _openCdpCallback(bytes memory data) internal {
         OpenCdpOperation memory flData = abi.decode(data, (OpenCdpOperation));
 
+        // use openCdpFor if flData.borrower is specified
         if (flData.borrower == address(0)) {
             /**
              * Open CDP and Emit event
@@ -508,8 +477,7 @@ contract LeverageMacroBase {
                 flData.eBTCToMint,
                 flData._upperHint,
                 flData._lowerHint,
-                // TODO: is this the best way to handle fee?
-                flData.stETHToDeposit - fee
+                flData.stETHToDeposit
             );
         } else {
             /**
@@ -519,8 +487,7 @@ contract LeverageMacroBase {
                 flData.eBTCToMint,
                 flData._upperHint,
                 flData._lowerHint,
-                // TODO: is this the best way to handle fee?
-                flData.stETHToDeposit - fee,
+                flData.stETHToDeposit,
                 flData.borrower
             );
         }
@@ -536,10 +503,7 @@ contract LeverageMacroBase {
 
     /// @dev Must be memory since we had to decode it
     function _adjustCdpCallback(bytes memory data) internal {
-        AdjustCdpOperation memory flData = abi.decode(
-            data,
-            (AdjustCdpOperation)
-        );
+        AdjustCdpOperation memory flData = abi.decode(data, (AdjustCdpOperation));
 
         borrowerOperations.adjustCdpWithColl(
             flData._cdpId,
