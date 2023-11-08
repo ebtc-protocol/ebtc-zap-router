@@ -82,6 +82,26 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             )
         );
 
+        // Confirm Cdp opened for user
+        bytes32[] memory userCdps = sortedCdps.getCdpsOf(user);
+        assertEq(userCdps.length, 1, "User should have 1 cdp");
+
+        // Confirm Zap has no cdps
+        bytes32[] memory zapCdps = sortedCdps.getCdpsOf(address(zapRouter));
+        assertEq(zapCdps.length, 0, "Zap should not have a Cdp");
+
+        // Confirm Zap has no coins
+        assertEq(collateral.balanceOf(address(zapRouter)), 0, "Zap should have no stETH balance");
+        assertEq(collateral.sharesOf(address(zapRouter)), 0, "Zap should have no stETH shares");
+        assertEq(eBTCToken.balanceOf(address(zapRouter)), 0, "Zap should have no eBTC");
+
+        // Confirm PM approvals are cleared
+        uint positionManagerApproval = uint256(borrowerOperations.getPositionManagerApproval(user, address(zapRouter)));
+        assertEq(positionManagerApproval, uint256(IPositionManagers.PositionManagerApproval.None), "Zap should have no PM approval after operation");
+
         vm.stopPrank();
+
+        _ensureSystemInvariants();
+        _ensureZapInvariants();
     }
 }
