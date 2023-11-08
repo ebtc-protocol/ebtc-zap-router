@@ -61,6 +61,7 @@ contract EbtcZapRouter is LeverageMacroBase, IEbtcZapRouter {
         cdp._upperHint = _upperHint;
         cdp._lowerHint = _lowerHint;
         cdp.stETHToDeposit = totalCollateral;
+        // specifying borrower here = openCdpFor
         cdp.borrower = msg.sender;
 
         SwapOperation[] memory swaps = new SwapOperation[](1);
@@ -118,6 +119,7 @@ contract EbtcZapRouter is LeverageMacroBase, IEbtcZapRouter {
         bytes calldata exchangeData
     ) external {
         // TODO: calculate this for real, need to figure out how to specify leverage ratio
+        // TODO: check max leverage here once we know how leverage will be specified
         uint256 flAmount = temp_RequiredCollateral(_debt);
         uint256 totalCollateral = flAmount + _stEthBalance;
 
