@@ -13,6 +13,7 @@ contract EbtcZapRouter is LeverageMacroBase, IEbtcZapRouter {
     IPriceFeed internal immutable priceFeed;
     address internal immutable dex;
 
+    // TODO: figure out if sweeping is needed, need to remove owner assertion
     constructor(
         DeploymentParams memory params
     )
@@ -23,7 +24,7 @@ contract EbtcZapRouter is LeverageMacroBase, IEbtcZapRouter {
             params.ebtc,
             params.stEth,
             params.sortedCdps,
-            true
+            false
         )
     {
         theOwner = msg.sender;
@@ -60,10 +61,11 @@ contract EbtcZapRouter is LeverageMacroBase, IEbtcZapRouter {
         cdp._upperHint = _upperHint;
         cdp._lowerHint = _lowerHint;
         cdp.stETHToDeposit = totalCollateral;
+        cdp.borrower = msg.sender;
 
         SwapOperation[] memory swaps = new SwapOperation[](1);
 
-        swaps[0].tokenForSwap = address(stETH);
+        swaps[0].tokenForSwap = address(ebtcToken);
         // TODO: approve target maybe different
         swaps[0].addressForApprove = dex;
         swaps[0].exactApproveAmount = _debt;
@@ -94,15 +96,16 @@ contract EbtcZapRouter is LeverageMacroBase, IEbtcZapRouter {
                 expectedDebt: CheckValueAndType({
                     value: _debt,
                     // TODO: maybe too tight?
-                    operator: Operator.equal
+                    operator: Operator.lte
                 }),
                 expectedCollateral: CheckValueAndType({
                     value: totalCollateral,
                     // TODO: maybe too tight?
-                    operator: Operator.equal
+                    operator: Operator.gte
                 }),
                 cdpId: bytes32(0), // Not used
-                expectedStatus: ICdpManagerData.Status.active
+                expectedStatus: ICdpManagerData.Status.active,
+                borrower: msg.sender
             });
     }
 
@@ -114,10 +117,11 @@ contract EbtcZapRouter is LeverageMacroBase, IEbtcZapRouter {
         PositionManagerPermit memory _positionManagerPermit,
         bytes calldata exchangeData
     ) external {
+        // TODO: calculate this for real, need to figure out how to specify leverage ratio
         uint256 flAmount = temp_RequiredCollateral(_debt);
         uint256 totalCollateral = flAmount + _stEthBalance;
 
-        IPositionManagers(address(borrowerOperations))
+        borrowerOperations
             .permitPositionManagerApproval(
                 msg.sender,
                 address(this),
@@ -142,6 +146,9 @@ contract EbtcZapRouter is LeverageMacroBase, IEbtcZapRouter {
             PostOperationCheck.openCdp,
             _getPostCheckParams(_debt, totalCollateral)
         );
+
+        // TODO: emit event
+        // TODO: return cdpId, otherwise useful data? check with UI devs
     }
 
     function openCdp(
@@ -210,7 +217,7 @@ contract EbtcZapRouter is LeverageMacroBase, IEbtcZapRouter {
 
         stETH.transferFrom(msg.sender, address(this), _stEthBalance);
 
-        IPositionManagers(address(borrowerOperations))
+        borrowerOperations
             .permitPositionManagerApproval(
                 msg.sender,
                 address(this),
