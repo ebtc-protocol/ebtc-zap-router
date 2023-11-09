@@ -135,12 +135,12 @@ contract LeverageMacroBase {
         /**
          * SETUP FOR POST CALL CHECK
          */
-        uint256 initialCdpIndex;
+        /*uint256 initialCdpIndex;
         if (postCheckType == PostOperationCheck.openCdp) {
             // How to get owner
             // sortedCdps.existCdpOwners(_cdpId);
             initialCdpIndex = sortedCdps.cdpCountOf(address(this));
-        }
+        }*/
 
         // Take eBTC or stETH FlashLoan
         if (flType == FlashLoanType.eBTC) {
@@ -169,14 +169,15 @@ contract LeverageMacroBase {
             // How to get owner
             // sortedCdps.existCdpOwners(_cdpId);
             // initialCdpIndex is initialCdpIndex + 1
-            bytes32 cdpId = sortedCdps.cdpOfOwnerByIndex(
+            /*bytes32 cdpId = sortedCdps.cdpOfOwnerByIndex(
                 // Check if openCdpFor was called
                 checkParams.borrower == address(0) ? address(this) : checkParams.borrower,
                 initialCdpIndex
-            );
-
+            );*/
+            
+            // Pass cdpId in to save gas
             // Check for param details
-            ICdpManagerData.Cdp memory cdpInfo = cdpManager.Cdps(cdpId);
+            ICdpManagerData.Cdp memory cdpInfo = cdpManager.Cdps(checkParams.cdpId);
             _doCheckValueType(checkParams.expectedDebt, cdpInfo.debt);
             _doCheckValueType(checkParams.expectedCollateral, cdpInfo.coll);
             require(
@@ -188,7 +189,6 @@ contract LeverageMacroBase {
         // Update CDP, Ensure the stats are as intended
         if (postCheckType == PostOperationCheck.cdpStats) {
             ICdpManagerData.Cdp memory cdpInfo = cdpManager.Cdps(checkParams.cdpId);
-
             _doCheckValueType(checkParams.expectedDebt, cdpInfo.debt);
             _doCheckValueType(checkParams.expectedCollateral, cdpInfo.coll);
             require(

@@ -21,12 +21,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         collateral.approve(address(borrowerOperations), type(uint256).max);
 
         // Seed AP
-        borrowerOperations.openCdp(
-            0.1e18,
-            bytes32(0),
-            bytes32(0),
-            60 ether
-        );
+        borrowerOperations.openCdp(0.1e18, bytes32(0), bytes32(0), 60 ether);
 
         vm.stopPrank();
     }
@@ -49,37 +44,40 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         _dealCollateralAndPrepForUse(user);
 
-        uint256 stEthBalance = 5 ether;
-
         vm.startPrank(user);
 
         // Generate signature to one-time approve zap
-        bytes32 digest = _generatePermitSignature(
-            user,
-            address(zapRouter),
-            _approval,
-            _deadline
-        );
+        bytes32 digest = _generatePermitSignature(user, address(zapRouter), _approval, _deadline);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivateKey, digest);
 
-        IEbtcZapRouter.PositionManagerPermit memory pmPermit = IEbtcZapRouter
-            .PositionManagerPermit(_deadline, v, r, s);
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = IEbtcZapRouter.PositionManagerPermit(
+            _deadline,
+            v,
+            r,
+            s
+        );
 
         collateral.approve(address(zapRouter), type(uint256).max);
 
+        bytes32 expectedCdpId = sortedCdps.toCdpId(user, block.number, sortedCdps.nextCdpNonce());
+
         // Get before balances
-        zapRouter.temp_openCdpWithLeverage(
-            1e18,
-            bytes32(0),
-            bytes32(0),
-            stEthBalance,
-            pmPermit,
-            abi.encodeWithSelector(
-                mockDex.swap.selector,
-                address(eBTCToken),
-                address(collateral),
-                1e18
-            )
+        assertEq(
+            zapRouter.temp_openCdpWithLeverage(
+                1e18, // Debt amount
+                bytes32(0),
+                bytes32(0),
+                5 ether, // Margin amount
+                pmPermit,
+                abi.encodeWithSelector(
+                    mockDex.swap.selector,
+                    address(eBTCToken),
+                    address(collateral),
+                    1e18 // Debt amount
+                )
+            ),
+            expectedCdpId,
+            "CDP ID should match expected value"
         );
 
         // Confirm Cdp opened for user
@@ -96,8 +94,14 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         assertEq(eBTCToken.balanceOf(address(zapRouter)), 0, "Zap should have no eBTC");
 
         // Confirm PM approvals are cleared
-        uint positionManagerApproval = uint256(borrowerOperations.getPositionManagerApproval(user, address(zapRouter)));
-        assertEq(positionManagerApproval, uint256(IPositionManagers.PositionManagerApproval.None), "Zap should have no PM approval after operation");
+        uint positionManagerApproval = uint256(
+            borrowerOperations.getPositionManagerApproval(user, address(zapRouter))
+        );
+        assertEq(
+            positionManagerApproval,
+            uint256(IPositionManagers.PositionManagerApproval.None),
+            "Zap should have no PM approval after operation"
+        );
 
         vm.stopPrank();
 
