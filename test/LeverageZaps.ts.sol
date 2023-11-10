@@ -4,16 +4,22 @@ pragma solidity ^0.8.13;
 import {Test, console2} from "forge-std/Test.sol";
 import {EbtcZapRouter} from "../src/EbtcZapRouter.sol";
 import {ZapRouterBaseInvariants} from "./ZapRouterBaseInvariants.sol";
+import {IERC3156FlashLender} from "@ebtc/contracts/Interfaces/IERC3156FlashLender.sol";
 import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
+import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
+
+interface ICdpCdps {
+    function Cdps(bytes32) external view returns (ICdpManagerData.Cdp memory);
+}
 
 contract LeverageZaps is ZapRouterBaseInvariants {
     function setUp() public override {
         super.setUp();
     }
 
-    function seedActivePool() private {
+    function seedActivePool() private returns (address) {
         address whale = vm.addr(0xabc456);
         _dealCollateralAndPrepForUse(whale);
 
@@ -21,28 +27,27 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         collateral.approve(address(borrowerOperations), type(uint256).max);
 
         // Seed AP
-        borrowerOperations.openCdp(0.1e18, bytes32(0), bytes32(0), 60 ether);
+        borrowerOperations.openCdp(2e18, bytes32(0), bytes32(0), 600 ether);
+
+        // Seed mock dex
+        eBTCToken.transfer(address(mockDex), 2e18);
 
         vm.stopPrank();
-    }
-
-    function test_ZapOpenCdp_WithStEth_LowLeverage() public {
-        seedActivePool();
 
         // Give stETH to mock dex
         mockDex.setPrice(priceFeedMock.fetchPrice());
         vm.deal(address(mockDex), type(uint96).max);
         vm.prank(address(mockDex));
         collateral.deposit{value: 10000 ether}();
+    }
 
-        address user = _createUserFromFixedPrivateKey();
-
+    function createPermit(
+        address user
+    ) private returns (IEbtcZapRouter.PositionManagerPermit memory pmPermit) {
         uint _deadline = (block.timestamp + deadline);
         IPositionManagers.PositionManagerApproval _approval = IPositionManagers
             .PositionManagerApproval
             .OneTime;
-
-        _dealCollateralAndPrepForUse(user);
 
         vm.startPrank(user);
 
@@ -50,12 +55,19 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         bytes32 digest = _generatePermitSignature(user, address(zapRouter), _approval, _deadline);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivateKey, digest);
 
-        IEbtcZapRouter.PositionManagerPermit memory pmPermit = IEbtcZapRouter.PositionManagerPermit(
-            _deadline,
-            v,
-            r,
-            s
-        );
+        pmPermit = IEbtcZapRouter.PositionManagerPermit(_deadline, v, r, s);
+
+        vm.stopPrank();
+    }
+
+    function createLeveragedPosition() private returns (address, bytes32) {
+        address user = _createUserFromFixedPrivateKey();
+
+        _dealCollateralAndPrepForUse(user);
+
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
+
+        vm.startPrank(user);
 
         collateral.approve(address(zapRouter), type(uint256).max);
 
@@ -79,6 +91,18 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             expectedCdpId,
             "CDP ID should match expected value"
         );
+
+        vm.stopPrank();
+
+        return (user, expectedCdpId);
+    }
+
+    function test_ZapOpenCdp_WithStEth_LowLeverage() public {
+        seedActivePool();
+
+        (address user, bytes32 cdpId) = createLeveragedPosition();
+
+        vm.startPrank(user);
 
         // Confirm Cdp opened for user
         bytes32[] memory userCdps = sortedCdps.getCdpsOf(user);
@@ -107,5 +131,35 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         _ensureSystemInvariants();
         _ensureZapInvariants();
+    }
+
+    function test_ZapCloseCdp_WithStEth_LowLeverage() public {
+        seedActivePool();
+
+        (address user, bytes32 cdpId) = createLeveragedPosition();
+
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
+
+        vm.startPrank(user);
+
+        ICdpManagerData.Cdp memory cdpInfo = ICdpCdps(address(cdpManager)).Cdps(cdpId);
+        uint256 flashFee = IERC3156FlashLender(address(borrowerOperations)).flashFee(
+            address(eBTCToken),
+            cdpInfo.debt
+        );
+
+        zapRouter.temp_closeCdpWithLeverage(
+            cdpId,
+            pmPermit,
+            10050, // 0.5% slippage
+            abi.encodeWithSelector(
+                mockDex.swapExactOut.selector,
+                address(collateral),
+                address(eBTCToken),
+                cdpInfo.debt + flashFee
+            )
+        );
+
+        vm.stopPrank();
     }
 }

@@ -123,6 +123,8 @@ contract LeverageMacroBase {
         PostOperationCheck postCheckType,
         PostCheckParams memory checkParams
     ) internal {
+        // TODO: grab balances before and only sweep the difference
+
         // Call FL Here, then the stuff below needs to happen inside the FL
         if (operation.amountToTransferIn > 0) {
             IERC20(operation.tokenToTransferIn).safeTransferFrom(
@@ -131,16 +133,6 @@ contract LeverageMacroBase {
                 operation.amountToTransferIn
             );
         }
-
-        /**
-         * SETUP FOR POST CALL CHECK
-         */
-        /*uint256 initialCdpIndex;
-        if (postCheckType == PostOperationCheck.openCdp) {
-            // How to get owner
-            // sortedCdps.existCdpOwners(_cdpId);
-            initialCdpIndex = sortedCdps.cdpCountOf(address(this));
-        }*/
 
         // Take eBTC or stETH FlashLoan
         if (flType == FlashLoanType.eBTC) {
@@ -165,16 +157,7 @@ contract LeverageMacroBase {
         /**
          * POST CALL CHECK FOR CREATION
          */
-        if (postCheckType == PostOperationCheck.openCdp) {
-            // How to get owner
-            // sortedCdps.existCdpOwners(_cdpId);
-            // initialCdpIndex is initialCdpIndex + 1
-            /*bytes32 cdpId = sortedCdps.cdpOfOwnerByIndex(
-                // Check if openCdpFor was called
-                checkParams.borrower == address(0) ? address(this) : checkParams.borrower,
-                initialCdpIndex
-            );*/
-            
+        if (postCheckType == PostOperationCheck.openCdp) {            
             // Pass cdpId in to save gas
             // Check for param details
             ICdpManagerData.Cdp memory cdpInfo = cdpManager.Cdps(checkParams.cdpId);
@@ -208,6 +191,7 @@ contract LeverageMacroBase {
         }
 
         // Sweep here if it's Reference, do not if it's delegate
+        // TODO: calculate before and after, only sweep the diff
         if (willSweep) {
             _sweepToCaller();
         }
