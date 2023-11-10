@@ -1,0 +1,21 @@
+{
+  "name": "@ebtc/ebtc-zap-router",
+  "version": "1.0.0",
+  "description": "",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "prettier": "prettier --write --plugin=prettier-plugin-solidity src/**/*.sol test/*.sol"
+  },
+  "keywords": [],
+  "author": "eBTC",
+  "license": "MIT",
+  "dependencies": {
+  
+  },
+  "devDependencies": {
+    "prettier": "3.0.3",
+    "prettier-plugin-solidity": "1.1.3"
+  }
+}

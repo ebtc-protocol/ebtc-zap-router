@@ -4,5 +4,8 @@ import {ZapRouterStateSnapshots} from "./ZapRouterStateSnapshots.sol";
 import {ZapRouterPropertiesDescriptions} from "./ZapRouterPropertiesDescriptions.sol";
 import {Asserts} from "@ebtc/contracts/TestContracts/invariants/Asserts.sol";
 
-abstract contract ZapRouterProperties is ZapRouterStateSnapshots, ZapRouterPropertiesDescriptions, Asserts {
-}
+abstract contract ZapRouterProperties is
+    ZapRouterStateSnapshots,
+    ZapRouterPropertiesDescriptions,
+    Asserts
+{}
