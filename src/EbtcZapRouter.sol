@@ -79,9 +79,39 @@ contract EbtcZapRouter is IEbtcZapRouter {
     function closeCdp(
         bytes32 _cdpId,
         PositionManagerPermit memory _positionManagerPermit
-    ) external payable {
+    ) external {
         _closeCdpWithPermit(_cdpId, _positionManagerPermit);
     }
+
+    /// @notice Function that allows various operations which might change both collateral and debt of a Cdp
+    /// @param _cdpId The CdpId on which this operation is operated
+    /// @param _stEthBalanceDecrease The total stETH collateral amount withdrawn from the specified Cdp
+    /// @param _debtChange The total eBTC debt amount withdrawn or repaid for the specified Cdp
+    /// @param _isDebtIncrease The flag (true or false) to indicate whether this is a eBTC token withdrawal (debt increase) or a repayment (debt reduce)
+    /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _stEthBalanceIncrease The total stETH collateral amount deposited (added) for the specified Cdp
+    function adjustCdp(
+        bytes32 _cdpId,
+        uint256 _stEthBalanceDecrease,
+        uint256 _debtChange,
+        bool _isDebtIncrease,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _stEthBalanceIncrease,
+        PositionManagerPermit memory _positionManagerPermit
+        ) external {
+            _adjustCdpWithPermit(
+                _cdpId,
+                _stEthBalanceDecrease,
+                _debtChange,
+                _isDebtIncrease,
+                _upperHint,
+                _lowerHint,
+                _stEthBalanceIncrease,
+                _positionManagerPermit
+            );
+        }
 
     /// @dev Increase the collateral for given CDP with raw native Ether
     /// @param _cdpId The CdpId on which this operation is operated
@@ -108,57 +138,6 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _stEthToAdd,
             _positionManagerPermit
         );
-    }
-
-    /// @dev Retrieve some collateral from given CDP.
-    /// @dev Note plain collateral(stETH) is returned no matter whatever original asset is zapped in
-    /// @param _cdpId The CdpId on which this operation is operated
-    /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
-    /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
-    /// @param _stETHDecrease The total stETH collateral amount withdrawn from the specified Cdp
-    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
-    function withdrawColl(
-        bytes32 _cdpId,
-        bytes32 _upperHint,
-        bytes32 _lowerHint,
-        uint256 _stETHDecrease,
-        PositionManagerPermit memory _positionManagerPermit
-    ) external payable {
-        _adjustCdpWithPermit(
-            _cdpId,
-            _stETHDecrease,
-            0,
-            false,
-            _upperHint,
-            _lowerHint,
-            0,
-            _positionManagerPermit
-        );
-    }
-
-    function openCdpWithWeth(
-        uint256 _debt,
-        bytes32 _upperHint,
-        bytes32 _lowerHint,
-        uint256 _wethBalance,
-        PositionManagerPermit memory _positionManagerPermit
-    ) external {
-        revert("Not Implemented");
-    }
-
-    /// @notice Open CDP with WstETH as input token
-    /// @param _debt Amount of debt to generate
-    /// @param _upperHint Upper hint for CDP opening
-    /// @param _lowerHint Lower hint for CDP opening
-    /// @param _wstEthBalance Amount of WstETH to use. Will be converted to an stETH balance.
-    function openCdpWithWstEth(
-        uint256 _debt,
-        bytes32 _upperHint,
-        bytes32 _lowerHint,
-        uint256 _wstEthBalance,
-        PositionManagerPermit memory _positionManagerPermit
-    ) external {
-        revert("Not Implemented");
     }
 
     function _openCdpWithPermit(
@@ -277,12 +256,12 @@ contract EbtcZapRouter is IEbtcZapRouter {
         );
         uint256 _collBalAfter = stEth.balanceOf(address(this));
 
-        // for debt increase
+        // Send any withdrawn debt back to borrower
         if (isDebtIncrease && _debtChange > 0) {
             ebtc.transfer(msg.sender, _debtChange);
-        }
+        }   
 
-        // for collateral decrease
+        // Send any withdrawn collateral to back to borrower
         if (_stEthBalanceDecrease > 0) {
             stEth.transfer(msg.sender, (_collBalAfter - _collBalBefore));
         }

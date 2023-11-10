@@ -202,13 +202,17 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         // Generate signature to one-time approve zap
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermit = _generateOneTimePermitFromFixedTestUser();
-        zapRouter.withdrawColl(
+        zapRouter.adjustCdp(
             _cdpIdToReduceColl,
-            bytes32(0),
-            bytes32(0),
             _reducedColl,
+            0,
+            false,
+            bytes32(0),
+            bytes32(0),
+            0,
             pmPermit
         );
+        
         uint256 _stETHBalAfter = collateral.balanceOf(user);
         uint256 _collShareAfter = cdpManager.getSyncedCdpCollShares(
             _cdpIdToReduceColl

@@ -25,24 +25,30 @@ interface IEbtcZapRouter {
         PositionManagerPermit memory _positionManagerPermit
     ) external payable;
 
-    function openCdpWithWeth(
-        uint256 _debt,
+    function adjustCdp(
+        bytes32 _cdpId,
+        uint256 _stEthBalanceDecrease,
+        uint256 _debtChange,
+        bool _isDebtIncrease,
         bytes32 _upperHint,
         bytes32 _lowerHint,
-        uint256 _wethBalance,
+        uint256 _stEthBalanceIncrease,
         PositionManagerPermit memory _positionManagerPermit
-    ) external;
+        ) external;
 
-    /// @notice Open CDP with WstETH as input token
-    /// @param _debt Amount of debt to generate
-    /// @param _upperHint Upper hint for CDP opening
-    /// @param _lowerHint Lower hint for CDP opening
-    /// @param _wstEthBalance Amount of WstETH to use. Will be converted to an stETH balance.
-    function openCdpWithWstEth(
-        uint256 _debt,
-        bytes32 _upperHint,
-        bytes32 _lowerHint,
-        uint256 _wstEthBalance,
+    // function adjustCdpWithEth(
+    //     bytes32 _cdpId,
+    //     uint256 _stEthBalanceDecrease,
+    //     uint256 _debtChange,
+    //     bool _isDebtIncrease,
+    //     bytes32 _upperHint,
+    //     bytes32 _lowerHint,
+    //     uint256 _ethBalanceIncrease,
+    //     PositionManagerPermit memory _positionManagerPermit
+    //     ) external payable;
+
+    function closeCdp(
+        bytes32 _cdpId,
         PositionManagerPermit memory _positionManagerPermit
     ) external;
 }
