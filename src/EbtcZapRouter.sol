@@ -37,9 +37,9 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _stEthBalance,
         PositionManagerPermit memory _positionManagerPermit
-    ) external {
+    ) external returns (bytes32 cdpId) {
         uint256 _collVal = _transferInitialStETHFromCaller(_stEthBalance);
-        _openCdpWithPermit(
+        return _openCdpWithPermit(
             _debt,
             _upperHint,
             _lowerHint,
@@ -60,10 +60,10 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _ethBalance,
         PositionManagerPermit memory _positionManagerPermit
-    ) external payable {
+    ) external payable returns (bytes32 cdpId) {
         uint256 _collVal = _convertRawEthToStETH(_ethBalance);
 
-        _openCdpWithPermit(
+        return _openCdpWithPermit(
             _debt,
             _upperHint,
             _lowerHint,
@@ -146,7 +146,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _stEthBalance,
         PositionManagerPermit memory _positionManagerPermit
-    ) internal {
+    ) internal returns (bytes32 cdpId) {
         // Check token balances of Zap before operation
         require(
             stEth.balanceOf(address(this)) >= _stEthBalance,
@@ -163,7 +163,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _positionManagerPermit.s
         );
 
-        borrowerOperations.openCdpFor(
+        cdpId = borrowerOperations.openCdpFor(
             _debt,
             _upperHint,
             _lowerHint,

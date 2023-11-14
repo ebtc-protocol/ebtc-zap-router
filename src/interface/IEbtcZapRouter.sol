@@ -15,7 +15,7 @@ interface IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _stEthBalance,
         PositionManagerPermit memory _positionManagerPermit
-    ) external;
+    ) external returns (bytes32 cdpId);
 
     function openCdpWithEth(
         uint256 _debt,
@@ -23,7 +23,7 @@ interface IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _ethBalance,
         PositionManagerPermit memory _positionManagerPermit
-    ) external payable;
+    ) external payable returns (bytes32 cdpId);
 
     function adjustCdp(
         bytes32 _cdpId,

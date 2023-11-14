@@ -2,6 +2,9 @@
 cache/
 out/
 
+# Fuzzing
+medusa/
+
 # Ignores development broadcast logs
 !/broadcast
 /broadcast/*/31337/
