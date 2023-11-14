@@ -4,6 +4,7 @@ out/
 
 # Fuzzing
 medusa/
+crytic-export/
 
 # Ignores development broadcast logs
 !/broadcast

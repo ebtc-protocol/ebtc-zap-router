@@ -9,7 +9,10 @@ abstract contract ZapRouterProperties is
     ZapRouterPropertiesDescriptions,
     EchidnaAsserts
 {
-    function echidna_pass() public returns (bool) {
-        return true;
+    function echidna_ZR_01() public returns (bool) {
+        return
+            (collateral.sharesOf(address(zapRouter)) == 0) &&
+            (collateral.balanceOf(address(zapRouter)) == 0) &&
+            (eBTCToken.balanceOf(address(zapRouter)) == 0);
     }
 }

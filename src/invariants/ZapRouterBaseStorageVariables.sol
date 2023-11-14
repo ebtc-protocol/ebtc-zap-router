@@ -8,4 +8,8 @@ abstract contract ZapRouterBaseStorageVariables is BaseStorageVariables {
     EbtcZapRouter public zapRouter;
     uint256 internal constant userPrivateKey = 0xabc123;
     uint256 internal constant deadline = 1800;
+
+    uint256 internal constant USER1_PK = 0xaaaaaa;
+    uint256 internal constant USER2_PK = 0xbbbbbb;
+    uint256 internal constant USER3_PK = 0xcccccc;
 }
