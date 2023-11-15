@@ -6,5 +6,6 @@ import {TargetFunctions} from "../TargetFunctions.sol";
 contract EchidnaTester is TargetFunctions {
     constructor() payable {
         super.setUp();
+        super.setUpActors();
     }
 }

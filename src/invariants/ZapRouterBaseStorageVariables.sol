@@ -2,6 +2,7 @@
 pragma solidity 0.8.17;
 
 import {EbtcZapRouter} from "../EbtcZapRouter.sol";
+import {ZapRouterActor} from "./ZapRouterActor.sol";
 import {BaseStorageVariables} from "@ebtc/contracts/TestContracts/BaseStorageVariables.sol";
 
 abstract contract ZapRouterBaseStorageVariables is BaseStorageVariables {
@@ -12,4 +13,10 @@ abstract contract ZapRouterBaseStorageVariables is BaseStorageVariables {
     uint256 internal constant USER1_PK = 0xaaaaaa;
     uint256 internal constant USER2_PK = 0xbbbbbb;
     uint256 internal constant USER3_PK = 0xcccccc;
+
+    mapping(address => ZapRouterActor) internal zapActors;
+    mapping(address => uint256) internal zapActorKeys;
+    address internal zapSender;
+    ZapRouterActor internal zapActor;
+    uint256 internal zapActorKey;
 }
