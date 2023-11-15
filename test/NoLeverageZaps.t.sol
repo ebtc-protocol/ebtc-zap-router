@@ -430,6 +430,48 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         _ensureZapInvariants();
     }
 
+    ///@dev test case: adjust CDP with raw native Ether deposited and debt minted too much
+    function test_ZapAdjustCDPWithRawEthDepositAndMintTooMuch_NoLeverage_NoFlippening()
+        public
+    {
+        address user = TEST_FIXED_USER;
+
+        // open a CDP
+        test_ZapOpenCdp_WithRawEth_NoLeverage_NoFlippening();
+
+        bytes32 _cdpIdToAdjust = sortedCdps.cdpOfOwnerByIndex(user, 0);
+        uint256 _collShareBefore = cdpManager.getSyncedCdpCollShares(
+            _cdpIdToAdjust
+        );
+        uint256 _debtBefore = cdpManager.getSyncedCdpDebt(_cdpIdToAdjust);
+
+        vm.startPrank(user);
+        uint256 _stETHBalBefore = collateral.balanceOf(user);
+        uint256 _changeColl = 2 ether;
+        uint256 _changeDebt = _debtBefore * 10;
+
+        // Generate signature to one-time approve zap
+        uint256 _debtBalBeforeMint = IERC20(address(eBTCToken)).balanceOf(user);
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermitMint = _generateOneTimePermitFromFixedTestUser();
+        vm.stopPrank();
+
+        vm.expectRevert(
+            "BorrowerOperations: An operation that would result in ICR < MCR is not permitted"
+        );
+        vm.prank(user);
+        zapRouter.adjustCdpWithEth{value: _changeColl}(
+            _cdpIdToAdjust,
+            0,
+            _changeDebt,
+            true,
+            bytes32(0),
+            bytes32(0),
+            _changeColl,
+            pmPermitMint
+        );
+    }
+
     ///@dev test case: adjust CDP with raw native Ether deposited and debt repaid
     function test_ZapAdjustCDPWithRawEthDepositAndRepay_NoLeverage_NoFlippening()
         public
