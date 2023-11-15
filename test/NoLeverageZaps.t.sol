@@ -137,6 +137,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             "Cdp should be closedByOwner at this moment"
         );
 
+        _checkZapStatusAfterOperation(user);
+
         vm.stopPrank();
 
         _ensureSystemInvariants();
@@ -176,6 +178,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             _collShareAfter,
             "Cdp collateral should be added as expected at this moment"
         );
+
+        _checkZapStatusAfterOperation(user);
 
         vm.stopPrank();
 
@@ -227,6 +231,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             _stETHBalAfter,
             "Collateral should be withdrawn to user as expected at this moment"
         );
+
+        _checkZapStatusAfterOperation(user);
 
         vm.stopPrank();
 
@@ -293,6 +299,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             _debtAfterRepay,
             "Debt should be repaid for CDP as expected at this moment"
         );
+
+        _checkZapStatusAfterOperation(user);
 
         vm.stopPrank();
 
@@ -362,6 +370,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             "Minted debt should go to CDP owner as expected at this moment"
         );
 
+        _checkZapStatusAfterOperation(user);
+
         vm.stopPrank();
 
         _ensureSystemInvariants();
@@ -424,6 +434,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             "Minted debt should go to CDP owner as expected at this moment"
         );
 
+        _checkZapStatusAfterOperation(user);
+
         vm.stopPrank();
 
         _ensureSystemInvariants();
@@ -470,6 +482,57 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             _changeColl,
             pmPermitMint
         );
+
+        _checkZapStatusAfterOperation(user);
+    }
+
+    ///@dev test case: raw Eth donation should not work
+    function test_ZapReceiveSurplusRawEth() public {
+        address user = TEST_FIXED_USER;
+
+        _dealRawEtherForUser(user);
+
+        uint256 stEthBalance = 30 ether;
+
+        uint256 debt = _utils.calculateBorrowAmount(
+            stEthBalance,
+            priceFeedMock.fetchPrice(),
+            COLLATERAL_RATIO
+        );
+
+        vm.startPrank(user);
+
+        // Generate signature to one-time approve zap
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+
+        // Get before balances
+
+        // Zap Open Cdp
+        uint256 _cdpCntBefore = sortedCdps.cdpCountOf(user);
+
+        vm.stopPrank();
+
+        uint256 _initialETH = stEthBalance + 0.2 ether;
+        uint256 _extraDonation = 1234567890123;
+
+        // require exact amout of raw Eth in openCDP
+        vm.expectRevert("EbtcZapRouter: Incorrect ETH amount");
+        vm.prank(user);
+        zapRouter.openCdpWithEth{value: _initialETH + _extraDonation}(
+            debt,
+            bytes32(0),
+            bytes32(0),
+            _initialETH,
+            pmPermit
+        );
+
+        // no receive() or fallback() cause transfer failure
+        vm.prank(user);
+        (bool sent, ) = address(zapRouter).call{value: _extraDonation}("");
+        assertEq(sent, false, "Should not allow send Ether directly to Zap");
+
+        _checkZapStatusAfterOperation(user);
     }
 
     ///@dev test case: adjust CDP with raw native Ether deposited and debt repaid
@@ -532,6 +595,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             _debtBalAfterMint,
             "Repaid debt should deducted from CDP owner as expected at this moment"
         );
+
+        _checkZapStatusAfterOperation(user);
 
         vm.stopPrank();
 

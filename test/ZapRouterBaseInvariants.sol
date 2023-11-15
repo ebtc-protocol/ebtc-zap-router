@@ -54,6 +54,7 @@ contract ZapRouterBaseInvariants is
             0,
             "Zap should have no eBTC"
         );
+        assertEq(address(zapRouter).balance, 0, "Zap should have no raw ETH");
 
         // Confirm PM approvals are cleared
         uint positionManagerApproval = uint256(
