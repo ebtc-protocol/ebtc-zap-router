@@ -68,6 +68,20 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         _;
     }
 
+    function _checkApproval(address _user) private {
+        uint positionManagerApproval = uint256(
+            borrowerOperations.getPositionManagerApproval(
+                _user,
+                address(zapRouter)
+            )
+        );
+        
+        t(
+            positionManagerApproval == uint256(IPositionManagers.PositionManagerApproval.None),
+            "ZR-04: Zap should have no PM approval after operation"
+        );
+    }
+
     function _generatePermitSignature(
         address _signer,
         address _positionManager,
@@ -158,6 +172,8 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             true
         );
         t(success, "Call shouldn't fail");
+
+        _checkApproval(address(zapSender));
     }
 
     function closeCdp(uint _i) public setup {
@@ -188,7 +204,9 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             ),
             true
         );
-        t(success, "Call shouldn't fail");        
+        t(success, "Call shouldn't fail");  
+
+        _checkApproval(address(zapSender));
     }
 
     function adjustCdp(
@@ -237,6 +255,8 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             ),
             true
         );
-        t(success, "Call shouldn't fail");    
+        t(success, "Call shouldn't fail");
+
+        _checkApproval(address(zapSender));
     }
 }

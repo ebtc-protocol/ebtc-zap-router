@@ -15,4 +15,12 @@ abstract contract ZapRouterProperties is
             (collateral.balanceOf(address(zapRouter)) == 0) &&
             (eBTCToken.balanceOf(address(zapRouter)) == 0);
     }
+
+    function echidna_ZR_02() public returns (bool) {
+        return address(zapRouter).balance == 0;
+    }
+
+    function echidna_ZR_03() public returns (bool) {
+        return sortedCdps.cdpCountOf(address(zapRouter)) == 0;
+    }
 }
