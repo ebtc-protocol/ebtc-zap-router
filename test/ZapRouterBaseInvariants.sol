@@ -9,6 +9,7 @@ import {ICdpManager} from "@ebtc/contracts/interfaces/ICdpManager.sol";
 import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
+import {WETH9} from "@ebtc/contracts/TestContracts/WETH9.sol";
 import {IStETH} from "../src/interface/IStETH.sol";
 import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
 
@@ -17,10 +18,13 @@ contract ZapRouterBaseInvariants is
     ZapRouterBaseStorageVariables
 {
     address internal TEST_FIXED_USER;
+    address internal testWeth;
 
     function setUp() public virtual override {
         super.setUp();
+        testWeth = address(new WETH9());
         zapRouter = new EbtcZapRouter(
+            IERC20(testWeth),
             IStETH(address(collateral)),
             IERC20(address(eBTCToken)),
             IBorrowerOperations(address(borrowerOperations)),
@@ -55,6 +59,11 @@ contract ZapRouterBaseInvariants is
             "Zap should have no eBTC"
         );
         assertEq(address(zapRouter).balance, 0, "Zap should have no raw ETH");
+        assertEq(
+            IERC20(testWeth).balanceOf(address(zapRouter)),
+            0,
+            "Zap should have no wrapped ETH"
+        );
 
         // Confirm PM approvals are cleared
         uint positionManagerApproval = uint256(

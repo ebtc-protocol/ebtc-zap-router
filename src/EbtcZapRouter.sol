@@ -7,20 +7,24 @@ import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperation
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {IStETH} from "./interface/IStETH.sol";
+import {IWrappedETH} from "./interface/IWrappedETH.sol";
 import {IEbtcZapRouter} from "./interface/IEbtcZapRouter.sol";
 
 contract EbtcZapRouter is IEbtcZapRouter {
     IStETH public immutable stEth;
     IERC20 public immutable ebtc;
+    IERC20 public immutable wrappedEth;
     IBorrowerOperations public immutable borrowerOperations;
     ICdpManager public immutable cdpManager;
 
     constructor(
+        IERC20 _wEth,
         IStETH _stEth,
         IERC20 _ebtc,
         IBorrowerOperations _borrowerOperations,
         ICdpManager _cdpManager
     ) {
+        wrappedEth = _wEth;
         stEth = _stEth;
         ebtc = _ebtc;
         borrowerOperations = _borrowerOperations;
@@ -28,6 +32,15 @@ contract EbtcZapRouter is IEbtcZapRouter {
 
         // Infinite Approvals @TODO: do these stay at max for each token?
         stEth.approve(address(borrowerOperations), type(uint256).max);
+        wrappedEth.approve(address(wrappedEth), type(uint256).max);
+    }
+
+    /// @dev This is to allow wrapped ETH related Zap
+    receive() external payable {
+        require(
+            msg.sender == address(wrappedEth),
+            "EbtcZapRouter: only allow Wrapped ETH to send Ether!"
+        );
     }
 
     /// @dev Open a CDP with stEth
@@ -72,6 +85,30 @@ contract EbtcZapRouter is IEbtcZapRouter {
         );
     }
 
+    /// @dev Open a CDP with Wrapped Ether
+    /// @param _debt The total expected debt for new CDP
+    /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _wethBalance The total stETH collateral (converted from wrapped Ether) amount deposited (added) for the specified Cdp
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
+    function openCdpWithWrappedEth(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _wethBalance,
+        PositionManagerPermit memory _positionManagerPermit
+    ) external payable {
+        uint256 _collVal = _convertWrappedEthToStETH(_wethBalance);
+
+        _openCdpWithPermit(
+            _debt,
+            _upperHint,
+            _lowerHint,
+            _collVal,
+            _positionManagerPermit
+        );
+    }
+
     /// @dev Close a CDP
     /// @dev Note plain collateral(stETH) is returned no matter whatever asset is zapped in
     /// @param _cdpId The CdpId on which this operation is operated
@@ -104,6 +141,43 @@ contract EbtcZapRouter is IEbtcZapRouter {
         uint256 _stEthBalanceIncrease = _ethBalanceIncrease;
         if (_ethBalanceIncrease > 0) {
             _stEthBalanceIncrease = _convertRawEthToStETH(_ethBalanceIncrease);
+        }
+
+        _adjustCdpWithPermit(
+            _cdpId,
+            _stEthBalanceDecrease,
+            _debtChange,
+            _isDebtIncrease,
+            _upperHint,
+            _lowerHint,
+            _stEthBalanceIncrease,
+            _positionManagerPermit
+        );
+    }
+
+    /// @notice Function that allows various operations which might change both collateral (increase collateral with wrapped Ether) and debt of a Cdp
+    /// @param _cdpId The CdpId on which this operation is operated
+    /// @param _stEthBalanceDecrease The total stETH collateral amount withdrawn from the specified Cdp
+    /// @param _debtChange The total eBTC debt amount withdrawn or repaid for the specified Cdp
+    /// @param _isDebtIncrease The flag (true or false) to indicate whether this is a eBTC token withdrawal (debt increase) or a repayment (debt reduce)
+    /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _wethBalanceIncrease The total stETH collateral (converted from wrapped Ether) amount deposited (added) for the specified Cdp
+    function adjustCdpWithWrappedEth(
+        bytes32 _cdpId,
+        uint256 _stEthBalanceDecrease,
+        uint256 _debtChange,
+        bool _isDebtIncrease,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _wethBalanceIncrease,
+        PositionManagerPermit memory _positionManagerPermit
+    ) external payable {
+        uint256 _stEthBalanceIncrease = _wethBalanceIncrease;
+        if (_wethBalanceIncrease > 0) {
+            _stEthBalanceIncrease = _convertWrappedEthToStETH(
+                _wethBalanceIncrease
+            );
         }
 
         _adjustCdpWithPermit(
@@ -315,18 +389,36 @@ contract EbtcZapRouter is IEbtcZapRouter {
     function _convertRawEthToStETH(
         uint256 _initialETH
     ) internal returns (uint256) {
-        // check before-after balances for 1-wei corner case
-        uint256 _balBefore = stEth.balanceOf(address(this));
-
         require(
             msg.value == _initialETH,
             "EbtcZapRouter: Incorrect ETH amount"
         );
+        return _depositRawEthIntoLido(_initialETH);
+    }
+
+    function _depositRawEthIntoLido(
+        uint256 _initialETH
+    ) internal returns (uint256) {
+        // check before-after balances for 1-wei corner case
+        uint256 _balBefore = stEth.balanceOf(address(this));
         // TODO call submit() with a referral?
         payable(address(stEth)).call{value: _initialETH}("");
-
         uint256 _deposit = stEth.balanceOf(address(this)) - _balBefore;
         return _deposit;
+    }
+
+    function _convertWrappedEthToStETH(
+        uint256 _initialWETH
+    ) internal returns (uint256) {
+        uint256 _wETHBalBefore = wrappedEth.balanceOf(address(this));
+        wrappedEth.transferFrom(msg.sender, address(this), _initialWETH);
+        uint256 _wETHReiceived = wrappedEth.balanceOf(address(this)) -
+            _wETHBalBefore;
+
+        uint256 _rawETHBalBefore = address(this).balance;
+        IWrappedETH(address(wrappedEth)).withdraw(_wETHReiceived);
+        uint256 _rawETHConverted = address(this).balance - _rawETHBalBefore;
+        return _depositRawEthIntoLido(_rawETHConverted);
     }
 
     function _getOwnerAddress(bytes32 cdpId) internal pure returns (address) {
