@@ -159,12 +159,83 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         t(success, "Call shouldn't fail");
     }
 
-    function closeCdp(uint _i) public setup {}
+    function closeCdp(uint _i) public setup {
+        bool success;
+        bytes memory returnData;
+
+        require(cdpManager.getActiveCdpsCount() > 1, "Cannot close last CDP");
+
+        uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+        require(numberOfCdps > 0, "Actor must have at least one CDP open");
+
+        _i = between(_i, 0, numberOfCdps - 1);
+        bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+        t(_cdpId != bytes32(0), "CDP ID must not be null if the index is valid");
+
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermit = _generateOneTimePermit(
+                address(zapSender),
+                zapActorKey
+            );
+
+        (success, returnData) = zapActor.proxy(
+            address(zapRouter),
+            abi.encodeWithSelector(
+                IEbtcZapRouter.closeCdp.selector,
+                _cdpId,
+                pmPermit
+            ),
+            true
+        );
+        t(success, "Call shouldn't fail");        
+    }
 
     function adjustCdp(
         uint _i,
         uint _collWithdrawal,
         uint _EBTCChange,
-        bool _isDebtIncrease
-    ) public setup {}
+        bool _isDebtIncrease,
+        uint _stEthBalanceIncrease
+    ) public setup {
+        bool success;
+        bytes memory returnData;
+
+        uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+        require(numberOfCdps > 0, "Actor must have at least one CDP open");
+
+        _i = between(_i, 0, numberOfCdps - 1);
+        bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+        t(_cdpId != bytes32(0), "CDP ID must not be null if the index is valid");
+
+        {
+            (uint256 entireDebt, uint256 entireColl) = cdpManager.getSyncedDebtAndCollShares(_cdpId);
+            _collWithdrawal = between(_collWithdrawal, 0, entireColl);
+            _EBTCChange = between(_EBTCChange, 0, entireDebt);
+
+            _stEthBalanceIncrease = min(_stEthBalanceIncrease, (INITIAL_COLL_BALANCE / 10) - entireColl); 
+        }
+
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermit = _generateOneTimePermit(
+                address(zapSender),
+                zapActorKey
+            );
+
+        (success, returnData) = zapActor.proxy(
+            address(zapRouter),
+            abi.encodeWithSelector(
+                IEbtcZapRouter.adjustCdp.selector,
+                _cdpId,
+                _collWithdrawal,
+                _EBTCChange,
+                _isDebtIncrease,
+                bytes32(0),
+                bytes32(0),
+                _stEthBalanceIncrease,
+                pmPermit
+            ),
+            true
+        );
+        t(success, "Call shouldn't fail");    
+    }
 }
