@@ -6,25 +6,31 @@ import {ICdpManager} from "@ebtc/contracts/interfaces/ICdpManager.sol";
 import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
+import {SafeERC20} from "@ebtc/contracts/Dependencies/SafeERC20.sol";
 import {IStETH} from "./interface/IStETH.sol";
 import {IEbtcZapRouter} from "./interface/IEbtcZapRouter.sol";
 
 contract EbtcZapRouter is IEbtcZapRouter {
+    using SafeERC20 for IERC20;
+
     IStETH public immutable stEth;
     IERC20 public immutable ebtc;
     IBorrowerOperations public immutable borrowerOperations;
     ICdpManager public immutable cdpManager;
+    address public immutable owner;
 
     constructor(
         IStETH _stEth,
         IERC20 _ebtc,
         IBorrowerOperations _borrowerOperations,
-        ICdpManager _cdpManager
+        ICdpManager _cdpManager,
+        address _owner
     ) {
         stEth = _stEth;
         ebtc = _ebtc;
         borrowerOperations = _borrowerOperations;
         cdpManager = _cdpManager;
+        owner = _owner;
 
         // Infinite Approvals @TODO: do these stay at max for each token?
         stEth.approve(address(borrowerOperations), type(uint256).max);
@@ -138,6 +144,15 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _stEthToAdd,
             _positionManagerPermit
         );
+    }
+
+    /// @notice Transfer an arbitrary token back to you
+    function sweepToken(address token, uint256 amount) public {
+        require(owner == msg.sender, "Must be owner");
+
+        if (amount > 0) {
+            IERC20(token).safeTransfer(msg.sender, amount);
+        }
     }
 
     function _openCdpWithPermit(

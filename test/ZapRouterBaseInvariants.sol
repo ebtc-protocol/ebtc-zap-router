@@ -24,7 +24,8 @@ contract ZapRouterBaseInvariants is
             IStETH(address(collateral)),
             IERC20(address(eBTCToken)),
             IBorrowerOperations(address(borrowerOperations)),
-            ICdpManager(address(cdpManager))
+            ICdpManager(address(cdpManager)),
+            defaultGovernance
         );
         TEST_FIXED_USER = _createUserFromPrivateKey(userPrivateKey);
     }

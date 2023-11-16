@@ -21,7 +21,8 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             IStETH(address(collateral)),
             IERC20(address(eBTCToken)),
             IBorrowerOperations(address(borrowerOperations)),
-            ICdpManager(address(cdpManager))
+            ICdpManager(address(cdpManager)),
+            defaultGovernance
         );
     }
 
