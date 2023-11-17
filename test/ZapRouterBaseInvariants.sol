@@ -12,18 +12,24 @@ import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {WETH9} from "@ebtc/contracts/TestContracts/WETH9.sol";
 import {IStETH} from "../src/interface/IStETH.sol";
 import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
+import {WstETH} from "../src/testContracts/WstETH.sol";
+import {IWstETH} from "../src/interface/IWstETH.sol";
 
 contract ZapRouterBaseInvariants is
     eBTCBaseInvariants,
     ZapRouterBaseStorageVariables
 {
+    uint256 public constant FIXED_COLL_SIZE = 30 ether;
     address internal TEST_FIXED_USER;
     address internal testWeth;
+    address internal testWstEth;
 
     function setUp() public virtual override {
         super.setUp();
         testWeth = address(new WETH9());
+        testWstEth = address(new WstETH(address(collateral)));
         zapRouter = new EbtcZapRouter(
+            IERC20(testWstEth),
             IERC20(testWeth),
             IStETH(address(collateral)),
             IERC20(address(eBTCToken)),
@@ -63,6 +69,11 @@ contract ZapRouterBaseInvariants is
             IERC20(testWeth).balanceOf(address(zapRouter)),
             0,
             "Zap should have no wrapped ETH"
+        );
+        assertEq(
+            IERC20(testWstEth).balanceOf(address(zapRouter)),
+            0,
+            "Zap should have no wrapped stETH"
         );
 
         // Confirm PM approvals are cleared
@@ -137,5 +148,63 @@ contract ZapRouterBaseInvariants is
 
     function _dealRawEtherForUser(address _user) internal {
         vm.deal(_user, type(uint96).max);
+    }
+
+    function _dealWrappedEtherForUser(
+        address _user
+    ) internal returns (uint256) {
+        return
+            _dealWrappedEtherForUserWithAmount(
+                _user,
+                FIXED_COLL_SIZE + 0.2 ether
+            );
+    }
+
+    function _dealWrappedEtherForUserWithAmount(
+        address _user,
+        uint256 _amt
+    ) internal returns (uint256) {
+        require(_amt > 0, "WETH increase expected should > 0!");
+        uint256 _balBefore = IERC20(testWeth).balanceOf(_user);
+        vm.prank(_user);
+        WETH9(testWeth).deposit{value: _amt}();
+        uint256 _newWETHBal = IERC20(testWeth).balanceOf(_user) - _balBefore;
+        require(
+            _newWETHBal > 0,
+            "WETH balance should increase as expected at this moment"
+        );
+        return _newWETHBal;
+    }
+
+    function _dealWrappedStETHForUser(
+        address _user
+    ) internal returns (uint256) {
+        return
+            _dealWrappedStETHForUserWithAmount(
+                _user,
+                IWstETH(testWstEth).getWstETHByStETH(
+                    FIXED_COLL_SIZE + 0.2 ether
+                )
+            );
+    }
+
+    function _dealWrappedStETHForUserWithAmount(
+        address _user,
+        uint256 _amt
+    ) internal returns (uint256) {
+        require(_amt > 0, "WstETH increase expected should > 0!");
+        uint256 _stETHRequired = IWstETH(testWstEth).getStETHByWstETH(_amt);
+
+        vm.startPrank(_user);
+        collateral.deposit{value: _stETHRequired * 2}();
+        collateral.approve(testWstEth, type(uint256).max);
+        uint256 _newWstETHBal = IWstETH(testWstEth).wrap(_stETHRequired);
+        require(
+            _newWstETHBal > 0,
+            "WstETH balance should increase as expected at this moment"
+        );
+        vm.stopPrank();
+
+        return _newWstETHBal;
     }
 }

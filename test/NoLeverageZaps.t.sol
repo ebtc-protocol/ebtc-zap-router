@@ -7,10 +7,9 @@ import {WETH9} from "@ebtc/contracts/TestContracts/WETH9.sol";
 import {EbtcZapRouter} from "../src/EbtcZapRouter.sol";
 import {ZapRouterBaseInvariants} from "./ZapRouterBaseInvariants.sol";
 import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
+import {WstETH} from "../src/testContracts/WstETH.sol";
 
 contract NoLeverageZaps is ZapRouterBaseInvariants {
-    uint256 public constant FIXED_COLL_SIZE = 30 ether;
-
     function setUp() public override {
         super.setUp();
     }
@@ -136,6 +135,50 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             bytes32(0),
             bytes32(0),
             _initialWETH,
+            pmPermit
+        );
+
+        // Confirm Cdp opened for user
+        uint256 _cdpCntAfter = sortedCdps.cdpCountOf(user);
+        assertEq(_cdpCntAfter - _cdpCntBefore, 1, "User should have 1 new cdp");
+
+        _checkZapStatusAfterOperation(user);
+
+        vm.stopPrank();
+
+        _ensureSystemInvariants();
+        _ensureZapInvariants();
+    }
+
+    ///@dev test case: open CDP with wrapped stETH
+    function test_ZapOpenCdp_WithWstEth_NoLeverage_NoFlippening() public {
+        address user = TEST_FIXED_USER;
+
+        _dealRawEtherForUser(user);
+        uint256 _initialWstETH = _dealWrappedStETHForUser(user);
+
+        uint256 debt = _utils.calculateBorrowAmount(
+            FIXED_COLL_SIZE,
+            priceFeedMock.fetchPrice(),
+            COLLATERAL_RATIO
+        );
+
+        vm.startPrank(user);
+
+        // Generate signature to one-time approve zap
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+
+        // Get before balances
+
+        // Zap Open Cdp
+        uint256 _cdpCntBefore = sortedCdps.cdpCountOf(user);
+        IERC20(testWstEth).approve(address(zapRouter), type(uint256).max);
+        zapRouter.openCdpWithWstEth(
+            debt,
+            bytes32(0),
+            bytes32(0),
+            _initialWstETH,
             pmPermit
         );
 
@@ -725,29 +768,78 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         _ensureZapInvariants();
     }
 
-    function _dealWrappedEtherForUser(
-        address _user
-    ) internal returns (uint256) {
-        return
-            _dealWrappedEtherForUserWithAmount(
-                _user,
-                FIXED_COLL_SIZE + 0.2 ether
-            );
-    }
+    ///@dev test case: adjust CDP with wrapped stETH deposited and debt repaid
+    function test_ZapAdjustCDPWithWstEthDepositAndRepay_NoLeverage_NoFlippening()
+        public
+    {
+        address user = TEST_FIXED_USER;
 
-    function _dealWrappedEtherForUserWithAmount(
-        address _user,
-        uint256 _amt
-    ) internal returns (uint256) {
-        require(_amt > 0, "WETH increase expected should > 0!");
-        uint256 _balBefore = IERC20(testWeth).balanceOf(_user);
-        vm.prank(_user);
-        WETH9(testWeth).deposit{value: _amt}();
-        uint256 _newWETHBal = IERC20(testWeth).balanceOf(_user) - _balBefore;
-        require(
-            _newWETHBal > 0,
-            "WETH balance should increase as expected at this moment"
+        // open a CDP
+        test_ZapOpenCdp_WithRawEth_NoLeverage_NoFlippening();
+
+        bytes32 _cdpIdToAdjust = sortedCdps.cdpOfOwnerByIndex(user, 0);
+        uint256 _collShareBefore = cdpManager.getSyncedCdpCollShares(
+            _cdpIdToAdjust
         );
-        return _newWETHBal;
+        uint256 _debtBefore = cdpManager.getSyncedCdpDebt(_cdpIdToAdjust);
+
+        uint256 _changeColl = 2 ether;
+        uint256 _changeWstETH = _dealWrappedStETHForUserWithAmount(
+            user,
+            _changeColl
+        );
+
+        vm.startPrank(user);
+        uint256 _changeDebt = _debtBefore / 10;
+
+        IERC20(address(eBTCToken)).approve(
+            address(zapRouter),
+            type(uint256).max
+        );
+
+        IERC20(testWstEth).approve(address(zapRouter), type(uint256).max);
+
+        // Generate signature to one-time approve zap
+        uint256 _debtBalBeforeMint = IERC20(address(eBTCToken)).balanceOf(user);
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermitMint = _generateOneTimePermitFromFixedTestUser();
+        zapRouter.adjustCdpWithWstEth(
+            _cdpIdToAdjust,
+            0,
+            _changeDebt,
+            false,
+            bytes32(0),
+            bytes32(0),
+            _changeWstETH,
+            pmPermitMint
+        );
+
+        uint256 _collShareAfterMint = cdpManager.getSyncedCdpCollShares(
+            _cdpIdToAdjust
+        );
+        uint256 _debtAfterMint = cdpManager.getSyncedCdpDebt(_cdpIdToAdjust);
+        uint256 _debtBalAfterMint = IERC20(address(eBTCToken)).balanceOf(user);
+        assertEq(
+            _collShareBefore + _changeWstETH,
+            _collShareAfterMint,
+            "Cdp collateral should be reduced as expected at this moment"
+        );
+        assertEq(
+            _debtBefore - _changeDebt,
+            _debtAfterMint,
+            "Debt should be repaid for CDP as expected at this moment"
+        );
+        assertEq(
+            _debtBalBeforeMint - _changeDebt,
+            _debtBalAfterMint,
+            "Repaid debt should deducted from CDP owner as expected at this moment"
+        );
+
+        _checkZapStatusAfterOperation(user);
+
+        vm.stopPrank();
+
+        _ensureSystemInvariants();
+        _ensureZapInvariants();
     }
 }

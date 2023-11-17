@@ -9,21 +9,25 @@ import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {IStETH} from "./interface/IStETH.sol";
 import {IWrappedETH} from "./interface/IWrappedETH.sol";
 import {IEbtcZapRouter} from "./interface/IEbtcZapRouter.sol";
+import {IWstETH} from "./interface/IWstETH.sol";
 
 contract EbtcZapRouter is IEbtcZapRouter {
     IStETH public immutable stEth;
     IERC20 public immutable ebtc;
     IERC20 public immutable wrappedEth;
+    IERC20 public immutable wstEth;
     IBorrowerOperations public immutable borrowerOperations;
     ICdpManager public immutable cdpManager;
 
     constructor(
+        IERC20 _wstEth,
         IERC20 _wEth,
         IStETH _stEth,
         IERC20 _ebtc,
         IBorrowerOperations _borrowerOperations,
         ICdpManager _cdpManager
     ) {
+        wstEth = _wstEth;
         wrappedEth = _wEth;
         stEth = _stEth;
         ebtc = _ebtc;
@@ -33,6 +37,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         // Infinite Approvals @TODO: do these stay at max for each token?
         stEth.approve(address(borrowerOperations), type(uint256).max);
         wrappedEth.approve(address(wrappedEth), type(uint256).max);
+        wstEth.approve(address(wstEth), type(uint256).max);
     }
 
     /// @dev This is to allow wrapped ETH related Zap
@@ -99,6 +104,30 @@ contract EbtcZapRouter is IEbtcZapRouter {
         PositionManagerPermit memory _positionManagerPermit
     ) external payable {
         uint256 _collVal = _convertWrappedEthToStETH(_wethBalance);
+
+        _openCdpWithPermit(
+            _debt,
+            _upperHint,
+            _lowerHint,
+            _collVal,
+            _positionManagerPermit
+        );
+    }
+
+    /// @dev Open a CDP with Wrapped StETH
+    /// @param _debt The total expected debt for new CDP
+    /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _wstEthBalance The total stETH collateral (converted from wrapped stETH) amount deposited (added) for the specified Cdp
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
+    function openCdpWithWstEth(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _wstEthBalance,
+        PositionManagerPermit memory _positionManagerPermit
+    ) external payable {
+        uint256 _collVal = _convertWstEthToStETH(_wstEthBalance);
 
         _openCdpWithPermit(
             _debt,
@@ -177,6 +206,43 @@ contract EbtcZapRouter is IEbtcZapRouter {
         if (_wethBalanceIncrease > 0) {
             _stEthBalanceIncrease = _convertWrappedEthToStETH(
                 _wethBalanceIncrease
+            );
+        }
+
+        _adjustCdpWithPermit(
+            _cdpId,
+            _stEthBalanceDecrease,
+            _debtChange,
+            _isDebtIncrease,
+            _upperHint,
+            _lowerHint,
+            _stEthBalanceIncrease,
+            _positionManagerPermit
+        );
+    }
+
+    /// @notice Function that allows various operations which might change both collateral (increase collateral with wrapped Ether) and debt of a Cdp
+    /// @param _cdpId The CdpId on which this operation is operated
+    /// @param _stEthBalanceDecrease The total stETH collateral amount withdrawn from the specified Cdp
+    /// @param _debtChange The total eBTC debt amount withdrawn or repaid for the specified Cdp
+    /// @param _isDebtIncrease The flag (true or false) to indicate whether this is a eBTC token withdrawal (debt increase) or a repayment (debt reduce)
+    /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _wstEthBalanceIncrease The total stETH collateral (converted from wrapped stETH) amount deposited (added) for the specified Cdp
+    function adjustCdpWithWstEth(
+        bytes32 _cdpId,
+        uint256 _stEthBalanceDecrease,
+        uint256 _debtChange,
+        bool _isDebtIncrease,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _wstEthBalanceIncrease,
+        PositionManagerPermit memory _positionManagerPermit
+    ) external payable {
+        uint256 _stEthBalanceIncrease = _wstEthBalanceIncrease;
+        if (_wstEthBalanceIncrease > 0) {
+            _stEthBalanceIncrease = _convertWstEthToStETH(
+                _wstEthBalanceIncrease
             );
         }
 
@@ -419,6 +485,22 @@ contract EbtcZapRouter is IEbtcZapRouter {
         IWrappedETH(address(wrappedEth)).withdraw(_wETHReiceived);
         uint256 _rawETHConverted = address(this).balance - _rawETHBalBefore;
         return _depositRawEthIntoLido(_rawETHConverted);
+    }
+
+    function _convertWstEthToStETH(
+        uint256 _initialWstETH
+    ) internal returns (uint256) {
+        require(
+            wstEth.transferFrom(msg.sender, address(this), _initialWstETH),
+            "EbtcZapRouter: transfer wstETH failure!"
+        );
+
+        uint256 _stETHBalBefore = stEth.balanceOf(address(this));
+        IWstETH(address(wstEth)).unwrap(_initialWstETH);
+        uint256 _stETHReiceived = stEth.balanceOf(address(this)) -
+            _stETHBalBefore;
+
+        return _stETHReiceived;
     }
 
     function _getOwnerAddress(bytes32 cdpId) internal pure returns (address) {
