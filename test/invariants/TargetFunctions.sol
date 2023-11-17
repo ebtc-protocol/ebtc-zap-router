@@ -8,16 +8,25 @@ import {ICdpManager} from "@ebtc/contracts/interfaces/ICdpManager.sol";
 import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
+import {WETH9} from "@ebtc/contracts/TestContracts/WETH9.sol";
 import {IStETH} from "../../src/interface/IStETH.sol";
 import {ZapRouterProperties} from "../../src/invariants/ZapRouterProperties.sol";
 import {EbtcZapRouter} from "../../src/EbtcZapRouter.sol";
 import {ZapRouterActor} from "../../src/invariants/ZapRouterActor.sol";
 import {IEbtcZapRouter} from "../../src/interface/IEbtcZapRouter.sol";
+import {WstETH} from "../../src/testContracts/WstETH.sol";
 
 abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
+    address internal testWeth;
+    address internal testWstEth;
+
     function setUp() public virtual {
         super._setUp();
+        testWeth = address(new WETH9());
+        testWstEth = address(new WstETH(address(collateral)));
         zapRouter = new EbtcZapRouter(
+            IERC20(testWstEth),
+            IERC20(testWeth),
             IStETH(address(collateral)),
             IERC20(address(eBTCToken)),
             IBorrowerOperations(address(borrowerOperations)),
