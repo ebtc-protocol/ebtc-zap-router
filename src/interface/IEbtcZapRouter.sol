@@ -34,7 +34,7 @@ interface IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _stEthBalanceIncrease,
         PositionManagerPermit memory _positionManagerPermit
-        ) external;
+    ) external;
 
     // function adjustCdpWithEth(
     //     bytes32 _cdpId,
