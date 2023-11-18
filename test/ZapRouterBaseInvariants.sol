@@ -21,8 +21,6 @@ contract ZapRouterBaseInvariants is
 {
     uint256 public constant FIXED_COLL_SIZE = 30 ether;
     address internal TEST_FIXED_USER;
-    address internal testWeth;
-    address internal testWstEth;
 
     function setUp() public virtual override {
         super.setUp();

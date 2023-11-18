@@ -19,4 +19,6 @@ abstract contract ZapRouterBaseStorageVariables is BaseStorageVariables {
     address internal zapSender;
     ZapRouterActor internal zapActor;
     uint256 internal zapActorKey;
+    address internal testWeth;
+    address internal testWstEth;
 }

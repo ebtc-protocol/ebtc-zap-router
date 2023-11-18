@@ -108,10 +108,10 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _wethBalance,
         PositionManagerPermit memory _positionManagerPermit
-    ) external payable {
+    ) external returns (bytes32 cdpId) {
         uint256 _collVal = _convertWrappedEthToStETH(_wethBalance);
 
-        _openCdpWithPermit(
+        return _openCdpWithPermit(
             _debt,
             _upperHint,
             _lowerHint,
@@ -132,10 +132,10 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _wstEthBalance,
         PositionManagerPermit memory _positionManagerPermit
-    ) external payable {
+    ) external returns (bytes32 cdpId) {
         uint256 _collVal = _convertWstEthToStETH(_wstEthBalance);
 
-        _openCdpWithPermit(
+        return _openCdpWithPermit(
             _debt,
             _upperHint,
             _lowerHint,
@@ -207,7 +207,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _wethBalanceIncrease,
         PositionManagerPermit memory _positionManagerPermit
-    ) external payable {
+    ) external {
         uint256 _stEthBalanceIncrease = _wethBalanceIncrease;
         if (_wethBalanceIncrease > 0) {
             _stEthBalanceIncrease = _convertWrappedEthToStETH(
@@ -244,7 +244,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _wstEthBalanceIncrease,
         PositionManagerPermit memory _positionManagerPermit
-    ) external payable {
+    ) external {
         uint256 _stEthBalanceIncrease = _wstEthBalanceIncrease;
         if (_wstEthBalanceIncrease > 0) {
             _stEthBalanceIncrease = _convertWstEthToStETH(

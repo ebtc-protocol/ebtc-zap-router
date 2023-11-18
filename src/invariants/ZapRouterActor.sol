@@ -4,9 +4,9 @@ import "@crytic/properties/contracts/util/Hevm.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 
 contract ZapRouterActor {
-    address[] internal tokens;
-    address internal zapRouter;
-    address internal sender;
+    address[] public tokens;
+    address public zapRouter;
+    address public sender;
 
     constructor(
         address[] memory _tokens,
@@ -17,6 +17,8 @@ contract ZapRouterActor {
         zapRouter = _zapRouter;
         sender = _sender;
         for (uint256 i = 0; i < tokens.length; i++) {
+            IERC20(tokens[i]).approve(zapRouter, type(uint256).max);
+            hevm.prank(sender);
             IERC20(tokens[i]).approve(zapRouter, type(uint256).max);
         }
     }
