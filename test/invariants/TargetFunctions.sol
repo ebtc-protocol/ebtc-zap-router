@@ -98,10 +98,14 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         uint256 amountAfter = IERC20(testWstEth).balanceOf(address(actor));
         (success, ) = actor.proxy(
             testWstEth,
-            abi.encodeWithSelector(IERC20.transfer.selector, actor.sender(), amountAfter - amountBefore),
+            abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                actor.sender(),
+                amountAfter - amountBefore
+            ),
             false
         );
-        assert(success);        
+        assert(success);
     }
 
     function setUpActors() internal {
@@ -394,8 +398,8 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
 
     function adjustCdp(
         uint _i,
-        uint _collWithdrawal,
-        uint _EBTCChange,
+        uint _stEthBalanceDecrease,
+        uint _debtChange,
         bool _isDebtIncrease,
         uint _stEthBalanceIncrease
     ) public setup {
@@ -417,8 +421,12 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         {
             (uint256 entireDebt, uint256 entireColl) = cdpManager
                 .getSyncedDebtAndCollShares(_cdpId);
-            _collWithdrawal = between(_collWithdrawal, 0, entireColl);
-            _EBTCChange = between(_EBTCChange, 0, entireDebt);
+            _stEthBalanceDecrease = between(
+                _stEthBalanceDecrease,
+                0,
+                entireColl
+            );
+            _debtChange = between(_debtChange, 0, entireDebt);
 
             _stEthBalanceIncrease = min(
                 _stEthBalanceIncrease,
@@ -437,8 +445,8 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             abi.encodeWithSelector(
                 IEbtcZapRouter.adjustCdp.selector,
                 _cdpId,
-                _collWithdrawal,
-                _EBTCChange,
+                _stEthBalanceDecrease,
+                _debtChange,
                 _isDebtIncrease,
                 bytes32(0),
                 bytes32(0),
@@ -463,6 +471,57 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
 
         bool success;
         bytes memory returnData;
+
+        uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+        require(numberOfCdps > 0, "Actor must have at least one CDP open");
+
+        _i = between(_i, 0, numberOfCdps - 1);
+        bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+        t(
+            _cdpId != bytes32(0),
+            "CDP ID must not be null if the index is valid"
+        );
+
+        {
+            (uint256 entireDebt, uint256 entireColl) = cdpManager
+                .getSyncedDebtAndCollShares(_cdpId);
+            _stEthBalanceDecrease = between(
+                _stEthBalanceDecrease,
+                0,
+                entireColl
+            );
+            _debtChange = between(_debtChange, 0, entireDebt);
+
+            _wethBalanceIncrease = min(
+                _wethBalanceIncrease,
+                (INITIAL_COLL_BALANCE / 10) - entireColl
+            );
+        }
+
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermit = _generateOneTimePermit(
+                address(zapSender),
+                zapActorKey
+            );
+
+        (success, returnData) = zapActor.proxy(
+            address(zapRouter),
+            abi.encodeWithSelector(
+                IEbtcZapRouter.adjustCdpWithWrappedEth.selector,
+                _cdpId,
+                _stEthBalanceDecrease,
+                _debtChange,
+                _isDebtIncrease,
+                bytes32(0),
+                bytes32(0),
+                _wethBalanceIncrease,
+                pmPermit
+            ),
+            true
+        );
+        t(success, "Call shouldn't fail");
+
+        _checkApproval(address(zapSender));
     }
 
     function adjustCdpWithWstEth(
@@ -476,5 +535,56 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
 
         bool success;
         bytes memory returnData;
+
+        uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+        require(numberOfCdps > 0, "Actor must have at least one CDP open");
+
+        _i = between(_i, 0, numberOfCdps - 1);
+        bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+        t(
+            _cdpId != bytes32(0),
+            "CDP ID must not be null if the index is valid"
+        );
+
+        {
+            (uint256 entireDebt, uint256 entireColl) = cdpManager
+                .getSyncedDebtAndCollShares(_cdpId);
+            _stEthBalanceDecrease = between(
+                _stEthBalanceDecrease,
+                0,
+                entireColl
+            );
+            _debtChange = between(_debtChange, 0, entireDebt);
+
+            _wstEthBalanceIncrease = min(
+                _wstEthBalanceIncrease,
+                (INITIAL_COLL_BALANCE / 10) - entireColl
+            );
+        }
+
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermit = _generateOneTimePermit(
+                address(zapSender),
+                zapActorKey
+            );
+
+        (success, returnData) = zapActor.proxy(
+            address(zapRouter),
+            abi.encodeWithSelector(
+                IEbtcZapRouter.adjustCdpWithWrappedEth.selector,
+                _cdpId,
+                _stEthBalanceDecrease,
+                _debtChange,
+                _isDebtIncrease,
+                bytes32(0),
+                bytes32(0),
+                _wstEthBalanceIncrease,
+                pmPermit
+            ),
+            true
+        );
+        t(success, "Call shouldn't fail");
+
+        _checkApproval(address(zapSender));
     }
 }
