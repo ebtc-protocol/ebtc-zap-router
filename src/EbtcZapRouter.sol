@@ -44,6 +44,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         stEth.approve(address(borrowerOperations), type(uint256).max);
         wrappedEth.approve(address(wrappedEth), type(uint256).max);
         wstEth.approve(address(wstEth), type(uint256).max);
+        stEth.approve(address(wstEth), type(uint256).max);
     }
 
     /// @dev This is to allow wrapped ETH related Zap
@@ -144,7 +145,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         );
     }
 
-    /// @dev Close a CDP
+    /// @dev Close a CDP with original collateral(stETH) returned to CDP owner
     /// @dev Note plain collateral(stETH) is returned no matter whatever asset is zapped in
     /// @param _cdpId The CdpId on which this operation is operated
     /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
@@ -152,7 +153,18 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _cdpId,
         PositionManagerPermit memory _positionManagerPermit
     ) external {
-        _closeCdpWithPermit(_cdpId, _positionManagerPermit);
+        _closeCdpWithPermit(_cdpId, false, _positionManagerPermit);
+    }
+
+    /// @dev Close a CDP with wrapped version of collateral(WstETH) returned to CDP owner
+    /// @dev Note plain collateral(stETH) is returned no matter whatever asset is zapped in
+    /// @param _cdpId The CdpId on which this operation is operated
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
+    function closeCdpForWstETH(
+        bytes32 _cdpId,
+        PositionManagerPermit memory _positionManagerPermit
+    ) external {
+        _closeCdpWithPermit(_cdpId, true, _positionManagerPermit);
     }
 
     /// @notice Function that allows various operations which might change both collateral (increase collateral with raw native Ether) and debt of a Cdp
@@ -163,6 +175,8 @@ contract EbtcZapRouter is IEbtcZapRouter {
     /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
     /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
     /// @param _ethBalanceIncrease The total stETH collateral (converted from raw native Ether) amount deposited (added) for the specified Cdp
+    /// @param _useWstETHForDecrease Indicator whether withdrawn collateral is original(stETH) or wrapped version(WstETH)
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
     function adjustCdpWithEth(
         bytes32 _cdpId,
         uint256 _stEthBalanceDecrease,
@@ -171,6 +185,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _ethBalanceIncrease,
+        bool _useWstETHForDecrease,
         PositionManagerPermit memory _positionManagerPermit
     ) external payable {
         uint256 _stEthBalanceIncrease = _ethBalanceIncrease;
@@ -186,6 +201,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _upperHint,
             _lowerHint,
             _stEthBalanceIncrease,
+            _useWstETHForDecrease,
             _positionManagerPermit
         );
     }
@@ -198,6 +214,8 @@ contract EbtcZapRouter is IEbtcZapRouter {
     /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
     /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
     /// @param _wethBalanceIncrease The total stETH collateral (converted from wrapped Ether) amount deposited (added) for the specified Cdp
+    /// @param _useWstETHForDecrease Indicator whether withdrawn collateral is original(stETH) or wrapped version(WstETH)
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
     function adjustCdpWithWrappedEth(
         bytes32 _cdpId,
         uint256 _stEthBalanceDecrease,
@@ -206,6 +224,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _wethBalanceIncrease,
+        bool _useWstETHForDecrease,
         PositionManagerPermit memory _positionManagerPermit
     ) external {
         uint256 _stEthBalanceIncrease = _wethBalanceIncrease;
@@ -223,6 +242,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _upperHint,
             _lowerHint,
             _stEthBalanceIncrease,
+            _useWstETHForDecrease,
             _positionManagerPermit
         );
     }
@@ -235,6 +255,8 @@ contract EbtcZapRouter is IEbtcZapRouter {
     /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
     /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
     /// @param _wstEthBalanceIncrease The total stETH collateral (converted from wrapped stETH) amount deposited (added) for the specified Cdp
+    /// @param _useWstETHForDecrease Indicator whether withdrawn collateral is original(stETH) or wrapped version(WstETH)
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
     function adjustCdpWithWstEth(
         bytes32 _cdpId,
         uint256 _stEthBalanceDecrease,
@@ -243,6 +265,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _wstEthBalanceIncrease,
+        bool _useWstETHForDecrease,
         PositionManagerPermit memory _positionManagerPermit
     ) external {
         uint256 _stEthBalanceIncrease = _wstEthBalanceIncrease;
@@ -260,6 +283,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _upperHint,
             _lowerHint,
             _stEthBalanceIncrease,
+            _useWstETHForDecrease,
             _positionManagerPermit
         );
     }
@@ -272,6 +296,8 @@ contract EbtcZapRouter is IEbtcZapRouter {
     /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
     /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
     /// @param _stEthBalanceIncrease The total stETH collateral amount deposited (added) for the specified Cdp
+    /// @param _useWstETHForDecrease Indicator whether withdrawn collateral is original(stETH) or wrapped version(WstETH)
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
     function adjustCdp(
         bytes32 _cdpId,
         uint256 _stEthBalanceDecrease,
@@ -280,6 +306,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _stEthBalanceIncrease,
+        bool _useWstETHForDecrease,
         PositionManagerPermit memory _positionManagerPermit
     ) external {
         _adjustCdpWithPermit(
@@ -290,6 +317,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _upperHint,
             _lowerHint,
             _stEthBalanceIncrease,
+            _useWstETHForDecrease,
             _positionManagerPermit
         );
     }
@@ -317,6 +345,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _upperHint,
             _lowerHint,
             _stEthToAdd,
+            false,
             _positionManagerPermit
         );
     }
@@ -369,6 +398,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
 
     function _closeCdpWithPermit(
         bytes32 _cdpId,
+        bool _useWstETH,
         PositionManagerPermit memory _positionManagerPermit
     ) internal {
         require(
@@ -395,8 +425,23 @@ contract EbtcZapRouter is IEbtcZapRouter {
         uint256 _collBalBefore = stEth.balanceOf(address(this));
         borrowerOperations.closeCdp(_cdpId);
         uint256 _collBalAfter = stEth.balanceOf(address(this));
+        uint256 _stETHDiff = _collBalAfter - _collBalBefore;
 
-        stEth.transfer(msg.sender, (_collBalAfter - _collBalBefore));
+        _transferCollateralToCaller(_useWstETH, _stETHDiff);
+    }
+
+    function _transferCollateralToCaller(
+        bool _useWstETH,
+        uint256 _stEthVal
+    ) internal {
+        if (_useWstETH) {
+            // return wrapped version(WstETH)
+            uint256 _wstETHVal = IWstETH(address(wstEth)).wrap(_stEthVal);
+            wstEth.transfer(msg.sender, _wstETHVal);
+        } else {
+            // return original collateral(stETH)
+            stEth.transfer(msg.sender, _stEthVal);
+        }
     }
 
     function _adjustCdpWithPermit(
@@ -407,6 +452,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _stEthBalanceIncrease,
+        bool _useWstETH,
         PositionManagerPermit memory _positionManagerPermit
     ) internal {
         require(
@@ -453,7 +499,10 @@ contract EbtcZapRouter is IEbtcZapRouter {
 
         // Send any withdrawn collateral to back to borrower
         if (_stEthBalanceDecrease > 0) {
-            stEth.transfer(msg.sender, (_collBalAfter - _collBalBefore));
+            _transferCollateralToCaller(
+                _useWstETH,
+                _collBalAfter - _collBalBefore
+            );
         }
     }
 

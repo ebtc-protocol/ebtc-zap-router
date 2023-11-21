@@ -14,9 +14,9 @@ abstract contract ZapRouterPropertiesDescriptions {
     string constant ZR_04 =
         "ZR-04: The ZapRouter should always renounce positionManagerApproval during a valid user operation";
     string constant ZR_05 =
-        "ZR-02: The balance of WETH in the ZapRouter should never change after creation";
+        "ZR-05: The balance of WETH in the ZapRouter should never change after creation";
     string constant ZR_06 =
-        "ZR-02: The balance of wstETH in the ZapRouter should never change after creation";
+        "ZR-06: The balance of wstETH in the ZapRouter should never change after creation";
 
     ///////////////////////////////////////////////////////
     // Zap Router - Unit Tests

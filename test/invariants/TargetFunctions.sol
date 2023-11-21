@@ -401,22 +401,26 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         uint _stEthBalanceDecrease,
         uint _debtChange,
         bool _isDebtIncrease,
-        uint _stEthBalanceIncrease
+        uint _stEthBalanceIncrease,
+        bool _useWstETHForDecrease
     ) public setup {
         _dealCollateral(zapActor);
 
         bool success;
         bytes memory returnData;
+        bytes32 _cdpId;
 
-        uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
-        require(numberOfCdps > 0, "Actor must have at least one CDP open");
+        {
+            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+            require(numberOfCdps > 0, "Actor must have at least one CDP open");
 
-        _i = between(_i, 0, numberOfCdps - 1);
-        bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
-        t(
-            _cdpId != bytes32(0),
-            "CDP ID must not be null if the index is valid"
-        );
+            _i = between(_i, 0, numberOfCdps - 1);
+            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+            t(
+                _cdpId != bytes32(0),
+                "CDP ID must not be null if the index is valid"
+            );
+        }
 
         {
             (uint256 entireDebt, uint256 entireColl) = cdpManager
@@ -451,6 +455,7 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
                 bytes32(0),
                 bytes32(0),
                 _stEthBalanceIncrease,
+                _useWstETHForDecrease,
                 pmPermit
             ),
             true
@@ -465,22 +470,26 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         uint256 _stEthBalanceDecrease,
         uint256 _debtChange,
         bool _isDebtIncrease,
-        uint256 _wethBalanceIncrease
+        uint256 _wethBalanceIncrease,
+        bool _useWstETHForDecrease
     ) public setup {
         _dealWETH(zapActor);
 
         bool success;
         bytes memory returnData;
+        bytes32 _cdpId;
 
-        uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
-        require(numberOfCdps > 0, "Actor must have at least one CDP open");
+        {
+            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+            require(numberOfCdps > 0, "Actor must have at least one CDP open");
 
-        _i = between(_i, 0, numberOfCdps - 1);
-        bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
-        t(
-            _cdpId != bytes32(0),
-            "CDP ID must not be null if the index is valid"
-        );
+            _i = between(_i, 0, numberOfCdps - 1);
+            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+            t(
+                _cdpId != bytes32(0),
+                "CDP ID must not be null if the index is valid"
+            );
+        }
 
         {
             (uint256 entireDebt, uint256 entireColl) = cdpManager
@@ -515,6 +524,7 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
                 bytes32(0),
                 bytes32(0),
                 _wethBalanceIncrease,
+                _useWstETHForDecrease,
                 pmPermit
             ),
             true
@@ -529,22 +539,26 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         uint256 _stEthBalanceDecrease,
         uint256 _debtChange,
         bool _isDebtIncrease,
-        uint256 _wstEthBalanceIncrease
+        uint256 _wstEthBalanceIncrease,
+        bool _useWstETHForDecrease
     ) public setup {
         _dealWrappedCollateral(zapActor);
 
         bool success;
         bytes memory returnData;
+        bytes32 _cdpId;
 
-        uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
-        require(numberOfCdps > 0, "Actor must have at least one CDP open");
+        {
+            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+            require(numberOfCdps > 0, "Actor must have at least one CDP open");
 
-        _i = between(_i, 0, numberOfCdps - 1);
-        bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
-        t(
-            _cdpId != bytes32(0),
-            "CDP ID must not be null if the index is valid"
-        );
+            _i = between(_i, 0, numberOfCdps - 1);
+            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+            t(
+                _cdpId != bytes32(0),
+                "CDP ID must not be null if the index is valid"
+            );
+        }
 
         {
             (uint256 entireDebt, uint256 entireColl) = cdpManager
@@ -579,6 +593,7 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
                 bytes32(0),
                 bytes32(0),
                 _wstEthBalanceIncrease,
+                _useWstETHForDecrease,
                 pmPermit
             ),
             true

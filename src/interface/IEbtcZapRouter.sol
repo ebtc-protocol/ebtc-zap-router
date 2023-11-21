@@ -49,6 +49,7 @@ interface IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _stEthBalanceIncrease,
+        bool _useWstETHForDecrease,
         PositionManagerPermit memory _positionManagerPermit
     ) external;
 
@@ -60,6 +61,7 @@ interface IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _ethBalanceIncrease,
+        bool _useWstETHForDecrease,
         PositionManagerPermit memory _positionManagerPermit
     ) external payable;
 
@@ -71,6 +73,7 @@ interface IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _wethBalanceIncrease,
+        bool _useWstETHForDecrease,
         PositionManagerPermit memory _positionManagerPermit
     ) external;
 
@@ -82,10 +85,16 @@ interface IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _wstEthBalanceIncrease,
+        bool _useWstETHForDecrease,
         PositionManagerPermit memory _positionManagerPermit
     ) external;
 
     function closeCdp(
+        bytes32 _cdpId,
+        PositionManagerPermit memory _positionManagerPermit
+    ) external;
+
+    function closeCdpForWstETH(
         bytes32 _cdpId,
         PositionManagerPermit memory _positionManagerPermit
     ) external;

@@ -8,6 +8,7 @@ import {EbtcZapRouter} from "../src/EbtcZapRouter.sol";
 import {ZapRouterBaseInvariants} from "./ZapRouterBaseInvariants.sol";
 import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
 import {WstETH} from "../src/testContracts/WstETH.sol";
+import {IWstETH} from "../src/interface/IWstETH.sol";
 
 contract NoLeverageZaps is ZapRouterBaseInvariants {
     function setUp() public override {
@@ -220,11 +221,70 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         // Generate signature to one-time approve zap
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+        uint256 _cdpColl = cdpManager.getSyncedCdpCollShares(_cdpIdToClose) +
+            cdpManager.getCdpLiquidatorRewardShares(_cdpIdToClose);
+        uint256 _stETHValBefore = IERC20(address(collateral)).balanceOf(user);
         zapRouter.closeCdp(_cdpIdToClose, pmPermit);
         assertEq(
             cdpManager.getCdpStatus(_cdpIdToClose),
             2,
             "Cdp should be closedByOwner at this moment"
+        );
+        uint256 _stETHValAfter = IERC20(address(collateral)).balanceOf(user);
+        assertEq(
+            _stETHValBefore + IWstETH(testWstEth).getStETHByWstETH(_cdpColl),
+            _stETHValAfter,
+            "Returned collateral to user should be the number as expected"
+        );
+
+        _checkZapStatusAfterOperation(user);
+
+        vm.stopPrank();
+
+        _ensureSystemInvariants();
+        _ensureZapInvariants();
+    }
+
+    ///@dev test case: close CDP for WstETH returned to CDP owner
+    function test_ZapCloseCdpForWstETH_NoLeverage_NoFlippening() public {
+        address user = TEST_FIXED_USER;
+
+        // open a CDP
+        test_ZapOpenCdp_WithRawEth_NoLeverage_NoFlippening();
+
+        // open anther CDP
+        test_ZapOpenCdp_WithRawEth_NoLeverage_NoFlippening();
+
+        bytes32 _cdpIdToClose = sortedCdps.cdpOfOwnerByIndex(user, 0);
+        assertEq(
+            cdpManager.getCdpStatus(_cdpIdToClose),
+            1,
+            "Cdp should be active for now"
+        );
+
+        vm.startPrank(user);
+        IERC20(address(eBTCToken)).approve(
+            address(zapRouter),
+            type(uint256).max
+        );
+
+        // Generate signature to one-time approve zap
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+        uint256 _cdpColl = cdpManager.getSyncedCdpCollShares(_cdpIdToClose) +
+            cdpManager.getCdpLiquidatorRewardShares(_cdpIdToClose);
+        uint256 _wstETHValBefore = IERC20(address(testWstEth)).balanceOf(user);
+        zapRouter.closeCdpForWstETH(_cdpIdToClose, pmPermit);
+        assertEq(
+            cdpManager.getCdpStatus(_cdpIdToClose),
+            2,
+            "Cdp should be closedByOwner at this moment"
+        );
+        uint256 _wstETHValAfter = IERC20(address(testWstEth)).balanceOf(user);
+        assertEq(
+            _wstETHValBefore + _cdpColl,
+            _wstETHValAfter,
+            "Returned collateral to user should be the number as expected"
         );
 
         _checkZapStatusAfterOperation(user);
@@ -304,6 +364,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             bytes32(0),
             bytes32(0),
             0,
+            false,
             pmPermit
         );
 
@@ -366,6 +427,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             bytes32(0),
             bytes32(0),
             0,
+            false,
             pmPermit
         );
 
@@ -383,6 +445,75 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             _stETHBalBefore + _changeColl,
             _stETHBalAfter,
             "Collateral should be withdrawn to user as expected at this moment"
+        );
+        assertEq(
+            _debtBefore - _changeDebt,
+            _debtAfterRepay,
+            "Debt should be repaid for CDP as expected at this moment"
+        );
+
+        _checkZapStatusAfterOperation(user);
+
+        vm.stopPrank();
+
+        _ensureSystemInvariants();
+        _ensureZapInvariants();
+    }
+
+    ///@dev test case: adjust CDP with collateral withdrawn in wrapped version(WstETH) and debt repaid
+    function test_ZapAdjustCDPWithdrawWrappedCollAndRepay_NoLeverage_NoFlippening()
+        public
+    {
+        address user = TEST_FIXED_USER;
+
+        // open a CDP
+        test_ZapOpenCdp_WithRawEth_NoLeverage_NoFlippening();
+
+        bytes32 _cdpIdToAdjust = sortedCdps.cdpOfOwnerByIndex(user, 0);
+        uint256 _collShareBefore = cdpManager.getSyncedCdpCollShares(
+            _cdpIdToAdjust
+        );
+        uint256 _debtBefore = cdpManager.getSyncedCdpDebt(_cdpIdToAdjust);
+
+        vm.startPrank(user);
+        uint256 _wstETHBalBefore = IERC20(testWstEth).balanceOf(user);
+        uint256 _changeColl = 2 ether;
+        uint256 _changeDebt = _debtBefore / 10;
+
+        IERC20(address(eBTCToken)).approve(
+            address(zapRouter),
+            type(uint256).max
+        );
+
+        // Generate signature to one-time approve zap
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+        zapRouter.adjustCdpWithEth(
+            _cdpIdToAdjust,
+            _changeColl,
+            _changeDebt,
+            false,
+            bytes32(0),
+            bytes32(0),
+            0,
+            true,
+            pmPermit
+        );
+
+        uint256 _wstETHBalAfter = IERC20(testWstEth).balanceOf(user);
+        uint256 _collShareAfter = cdpManager.getSyncedCdpCollShares(
+            _cdpIdToAdjust
+        );
+        uint256 _debtAfterRepay = cdpManager.getSyncedCdpDebt(_cdpIdToAdjust);
+        assertEq(
+            _collShareBefore - collateral.getSharesByPooledEth(_changeColl),
+            _collShareAfter,
+            "Cdp collateral should be reduced as expected at this moment"
+        );
+        assertEq(
+            _wstETHBalBefore + collateral.getSharesByPooledEth(_changeColl),
+            _wstETHBalAfter,
+            "Collateral(wrapped version) should be withdrawn to user as expected at this moment"
         );
         assertEq(
             _debtBefore - _changeDebt,
@@ -430,6 +561,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             bytes32(0),
             bytes32(0),
             0,
+            false,
             pmPermit
         );
 
@@ -447,6 +579,77 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         assertEq(
             _stETHBalBefore + _changeColl,
             _stETHBalAfter,
+            "Collateral should be withdrawn to user as expected at this moment"
+        );
+        assertEq(
+            _debtBefore + _changeDebt,
+            _debtAfterRepay,
+            "Debt should be minted for CDP as expected at this moment"
+        );
+        assertEq(
+            _debtBalBeforeMint + _changeDebt,
+            _debtBalAfterMint,
+            "Minted debt should go to CDP owner as expected at this moment"
+        );
+
+        _checkZapStatusAfterOperation(user);
+
+        vm.stopPrank();
+
+        _ensureSystemInvariants();
+        _ensureZapInvariants();
+    }
+
+    ///@dev test case: adjust CDP with collateral withdrawn(wrapped version) and debt minted
+    function test_ZapAdjustCDPWithdrawWrappedCollAndMint_NoLeverage_NoFlippening()
+        public
+    {
+        address user = TEST_FIXED_USER;
+
+        // open a CDP
+        test_ZapOpenCdp_WithRawEth_NoLeverage_NoFlippening();
+
+        bytes32 _cdpIdToAdjust = sortedCdps.cdpOfOwnerByIndex(user, 0);
+        uint256 _collShareBefore = cdpManager.getSyncedCdpCollShares(
+            _cdpIdToAdjust
+        );
+        uint256 _debtBefore = cdpManager.getSyncedCdpDebt(_cdpIdToAdjust);
+
+        vm.startPrank(user);
+        uint256 _wstETHBalBefore = IERC20(testWstEth).balanceOf(user);
+        uint256 _changeColl = 2 ether;
+        uint256 _changeDebt = _debtBefore / 10;
+
+        // Generate signature to one-time approve zap
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+        uint256 _debtBalBeforeMint = IERC20(address(eBTCToken)).balanceOf(user);
+        zapRouter.adjustCdpWithEth(
+            _cdpIdToAdjust,
+            _changeColl,
+            _changeDebt,
+            true,
+            bytes32(0),
+            bytes32(0),
+            0,
+            true,
+            pmPermit
+        );
+
+        uint256 _wstETHBalAfter = IERC20(testWstEth).balanceOf(user);
+        uint256 _collShareAfter = cdpManager.getSyncedCdpCollShares(
+            _cdpIdToAdjust
+        );
+        uint256 _debtAfterRepay = cdpManager.getSyncedCdpDebt(_cdpIdToAdjust);
+        uint256 _debtBalAfterMint = IERC20(address(eBTCToken)).balanceOf(user);
+        assertEq(
+            _collShareBefore - collateral.getSharesByPooledEth(_changeColl),
+            _collShareAfter,
+            "Cdp collateral should be reduced as expected at this moment"
+        );
+        assertEq(
+            _wstETHBalBefore + collateral.getSharesByPooledEth(_changeColl),
+            _wstETHBalAfter,
             "Collateral should be withdrawn to user as expected at this moment"
         );
         assertEq(
@@ -500,6 +703,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             bytes32(0),
             bytes32(0),
             _changeColl,
+            false,
             pmPermitMint
         );
 
@@ -570,6 +774,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             bytes32(0),
             bytes32(0),
             _changeColl,
+            false,
             pmPermitMint
         );
 
@@ -661,6 +866,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             bytes32(0),
             bytes32(0),
             _changeColl,
+            false,
             pmPermitMint
         );
 
@@ -736,6 +942,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             bytes32(0),
             bytes32(0),
             _changeWETH,
+            false,
             pmPermitMint
         );
 
@@ -811,6 +1018,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             bytes32(0),
             bytes32(0),
             _changeWstETH,
+            false,
             pmPermitMint
         );
 
