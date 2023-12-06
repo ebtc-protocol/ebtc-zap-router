@@ -15,6 +15,9 @@ import {IWstETH} from "./interface/IWstETH.sol";
 contract EbtcZapRouter is IEbtcZapRouter {
     using SafeERC20 for IERC20;
 
+    address public constant NATIVE_ETH_ADDRESS =
+        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
     IStETH public immutable stEth;
     IERC20 public immutable ebtc;
     IERC20 public immutable wrappedEth;
@@ -64,13 +67,21 @@ contract EbtcZapRouter is IEbtcZapRouter {
         PositionManagerPermit memory _positionManagerPermit
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _transferInitialStETHFromCaller(_stEthBalance);
-        return _openCdpWithPermit(
+
+        require(
+            _stEthBalance == _collVal,
+            "EbtcZapRouter: stETH conversion error"
+        );
+
+        cdpId = _openCdpWithPermit(
             _debt,
             _upperHint,
             _lowerHint,
             _collVal,
             _positionManagerPermit
         );
+
+        emit ZapOperationEthVariant(cdpId, EthVariantZapOperationType.OpenCdp, true, address(stEth), _stEthBalance, _collVal);
     }
 
     /// @dev Open a CDP with raw native Ether
@@ -88,13 +99,15 @@ contract EbtcZapRouter is IEbtcZapRouter {
     ) external payable returns (bytes32 cdpId) {
         uint256 _collVal = _convertRawEthToStETH(_ethBalance);
 
-        return _openCdpWithPermit(
+        cdpId = _openCdpWithPermit(
             _debt,
             _upperHint,
             _lowerHint,
             _collVal,
             _positionManagerPermit
         );
+
+        emit ZapOperationEthVariant(cdpId, EthVariantZapOperationType.OpenCdp, true, NATIVE_ETH_ADDRESS, _ethBalance, _collVal);
     }
 
     /// @dev Open a CDP with Wrapped Ether
@@ -112,13 +125,15 @@ contract EbtcZapRouter is IEbtcZapRouter {
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _convertWrappedEthToStETH(_wethBalance);
 
-        return _openCdpWithPermit(
+        cdpId = _openCdpWithPermit(
             _debt,
             _upperHint,
             _lowerHint,
             _collVal,
             _positionManagerPermit
         );
+        
+        emit ZapOperationEthVariant(cdpId, EthVariantZapOperationType.OpenCdp, true, address(wrappedEth), _wethBalance, _collVal);
     }
 
     /// @dev Open a CDP with Wrapped StETH
@@ -136,13 +151,15 @@ contract EbtcZapRouter is IEbtcZapRouter {
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _convertWstEthToStETH(_wstEthBalance);
 
-        return _openCdpWithPermit(
+        cdpId = _openCdpWithPermit(
             _debt,
             _upperHint,
             _lowerHint,
             _collVal,
             _positionManagerPermit
         );
+
+        emit ZapOperationEthVariant(cdpId, EthVariantZapOperationType.OpenCdp, true, address(wstEth), _wstEthBalance, _collVal);
     }
 
     /// @dev Close a CDP with original collateral(stETH) returned to CDP owner
@@ -169,7 +186,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
 
     /// @notice Function that allows various operations which might change both collateral (increase collateral with raw native Ether) and debt of a Cdp
     /// @param _cdpId The CdpId on which this operation is operated
-    /// @param _stEthBalanceDecrease The total stETH collateral amount withdrawn from the specified Cdp
+    /// @param _collBalanceDecrease The total stETH collateral amount withdrawn from the specified Cdp
     /// @param _debtChange The total eBTC debt amount withdrawn or repaid for the specified Cdp
     /// @param _isDebtIncrease The flag (true or false) to indicate whether this is a eBTC token withdrawal (debt increase) or a repayment (debt reduce)
     /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
@@ -179,7 +196,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
     /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
     function adjustCdpWithEth(
         bytes32 _cdpId,
-        uint256 _stEthBalanceDecrease,
+        uint256 _collBalanceDecrease,
         uint256 _debtChange,
         bool _isDebtIncrease,
         bytes32 _upperHint,
@@ -188,19 +205,20 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bool _useWstETHForDecrease,
         PositionManagerPermit memory _positionManagerPermit
     ) external payable {
-        uint256 _stEthBalanceIncrease = _ethBalanceIncrease;
+        uint256 _collBalanceIncrease = _ethBalanceIncrease;
         if (_ethBalanceIncrease > 0) {
-            _stEthBalanceIncrease = _convertRawEthToStETH(_ethBalanceIncrease);
+            _collBalanceIncrease = _convertRawEthToStETH(_ethBalanceIncrease);
+            emit ZapOperationEthVariant(_cdpId, EthVariantZapOperationType.AdjustCdp, true, NATIVE_ETH_ADDRESS, _ethBalanceIncrease, _collBalanceIncrease);
         }
 
         _adjustCdpWithPermit(
             _cdpId,
-            _stEthBalanceDecrease,
+            _collBalanceDecrease,
             _debtChange,
             _isDebtIncrease,
             _upperHint,
             _lowerHint,
-            _stEthBalanceIncrease,
+            _collBalanceIncrease,
             _useWstETHForDecrease,
             _positionManagerPermit
         );
@@ -208,7 +226,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
 
     /// @notice Function that allows various operations which might change both collateral (increase collateral with wrapped Ether) and debt of a Cdp
     /// @param _cdpId The CdpId on which this operation is operated
-    /// @param _stEthBalanceDecrease The total stETH collateral amount withdrawn from the specified Cdp
+    /// @param _collBalanceDecrease The total stETH collateral amount withdrawn from the specified Cdp
     /// @param _debtChange The total eBTC debt amount withdrawn or repaid for the specified Cdp
     /// @param _isDebtIncrease The flag (true or false) to indicate whether this is a eBTC token withdrawal (debt increase) or a repayment (debt reduce)
     /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
@@ -218,7 +236,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
     /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
     function adjustCdpWithWrappedEth(
         bytes32 _cdpId,
-        uint256 _stEthBalanceDecrease,
+        uint256 _collBalanceDecrease,
         uint256 _debtChange,
         bool _isDebtIncrease,
         bytes32 _upperHint,
@@ -227,21 +245,22 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bool _useWstETHForDecrease,
         PositionManagerPermit memory _positionManagerPermit
     ) external {
-        uint256 _stEthBalanceIncrease = _wethBalanceIncrease;
+        uint256 _collBalanceIncrease = _wethBalanceIncrease;
         if (_wethBalanceIncrease > 0) {
-            _stEthBalanceIncrease = _convertWrappedEthToStETH(
+            _collBalanceIncrease = _convertWrappedEthToStETH(
                 _wethBalanceIncrease
             );
+            emit ZapOperationEthVariant(_cdpId, EthVariantZapOperationType.AdjustCdp, true, address(wrappedEth), _wethBalanceIncrease, _collBalanceIncrease);
         }
 
         _adjustCdpWithPermit(
             _cdpId,
-            _stEthBalanceDecrease,
+            _collBalanceDecrease,
             _debtChange,
             _isDebtIncrease,
             _upperHint,
             _lowerHint,
-            _stEthBalanceIncrease,
+            _collBalanceIncrease,
             _useWstETHForDecrease,
             _positionManagerPermit
         );
@@ -249,7 +268,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
 
     /// @notice Function that allows various operations which might change both collateral (increase collateral with wrapped Ether) and debt of a Cdp
     /// @param _cdpId The CdpId on which this operation is operated
-    /// @param _stEthBalanceDecrease The total stETH collateral amount withdrawn from the specified Cdp
+    /// @param _collBalanceDecrease The total stETH collateral amount withdrawn from the specified Cdp
     /// @param _debtChange The total eBTC debt amount withdrawn or repaid for the specified Cdp
     /// @param _isDebtIncrease The flag (true or false) to indicate whether this is a eBTC token withdrawal (debt increase) or a repayment (debt reduce)
     /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
@@ -259,7 +278,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
     /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
     function adjustCdpWithWstEth(
         bytes32 _cdpId,
-        uint256 _stEthBalanceDecrease,
+        uint256 _collBalanceDecrease,
         uint256 _debtChange,
         bool _isDebtIncrease,
         bytes32 _upperHint,
@@ -268,21 +287,24 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bool _useWstETHForDecrease,
         PositionManagerPermit memory _positionManagerPermit
     ) external {
-        uint256 _stEthBalanceIncrease = _wstEthBalanceIncrease;
+        uint256 _collBalanceIncrease = _wstEthBalanceIncrease;
+
+        // wstETH In
         if (_wstEthBalanceIncrease > 0) {
-            _stEthBalanceIncrease = _convertWstEthToStETH(
+            _collBalanceIncrease = _convertWstEthToStETH(
                 _wstEthBalanceIncrease
             );
-        }
+            emit ZapOperationEthVariant(_cdpId, EthVariantZapOperationType.AdjustCdp, false, address(wstEth), _wstEthBalanceIncrease, _collBalanceIncrease);
+        } 
 
         _adjustCdpWithPermit(
             _cdpId,
-            _stEthBalanceDecrease,
+            _collBalanceDecrease,
             _debtChange,
             _isDebtIncrease,
             _upperHint,
             _lowerHint,
-            _stEthBalanceIncrease,
+            _collBalanceIncrease,
             _useWstETHForDecrease,
             _positionManagerPermit
         );
@@ -290,33 +312,36 @@ contract EbtcZapRouter is IEbtcZapRouter {
 
     /// @notice Function that allows various operations which might change both collateral and debt of a Cdp
     /// @param _cdpId The CdpId on which this operation is operated
-    /// @param _stEthBalanceDecrease The total stETH collateral amount withdrawn from the specified Cdp
+    /// @param _collBalanceDecrease The total stETH collateral amount withdrawn from the specified Cdp
     /// @param _debtChange The total eBTC debt amount withdrawn or repaid for the specified Cdp
     /// @param _isDebtIncrease The flag (true or false) to indicate whether this is a eBTC token withdrawal (debt increase) or a repayment (debt reduce)
     /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
     /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
-    /// @param _stEthBalanceIncrease The total stETH collateral amount deposited (added) for the specified Cdp
+    /// @param _collBalanceIncrease The total stETH collateral amount deposited (added) for the specified Cdp
     /// @param _useWstETHForDecrease Indicator whether withdrawn collateral is original(stETH) or wrapped version(WstETH)
     /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
     function adjustCdp(
         bytes32 _cdpId,
-        uint256 _stEthBalanceDecrease,
+        uint256 _collBalanceDecrease,
         uint256 _debtChange,
         bool _isDebtIncrease,
         bytes32 _upperHint,
         bytes32 _lowerHint,
-        uint256 _stEthBalanceIncrease,
+        uint256 _collBalanceIncrease,
         bool _useWstETHForDecrease,
         PositionManagerPermit memory _positionManagerPermit
     ) external {
+        if (_collBalanceIncrease > 0) {
+         emit ZapOperationEthVariant(_cdpId, EthVariantZapOperationType.AdjustCdp, false, address(stEth), _collBalanceIncrease, _collBalanceIncrease);
+        }
         _adjustCdpWithPermit(
             _cdpId,
-            _stEthBalanceDecrease,
+            _collBalanceDecrease,
             _debtChange,
             _isDebtIncrease,
             _upperHint,
             _lowerHint,
-            _stEthBalanceIncrease,
+            _collBalanceIncrease,
             _useWstETHForDecrease,
             _positionManagerPermit
         );
@@ -422,36 +447,41 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _positionManagerPermit.s
         );
 
-        uint256 _collBalBefore = stEth.balanceOf(address(this));
+        uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
         borrowerOperations.closeCdp(_cdpId);
-        uint256 _collBalAfter = stEth.balanceOf(address(this));
-        uint256 _stETHDiff = _collBalAfter - _collBalBefore;
+        uint256 _zapStEthBalanceAfter = stEth.balanceOf(address(this));
+        uint256 _stETHDiff = _zapStEthBalanceAfter - _zapStEthBalanceBefore;
 
-        _transferCollateralToCaller(_useWstETH, _stETHDiff);
+        _transferStEthToCaller(_cdpId, EthVariantZapOperationType.CloseCdp, _useWstETH, _stETHDiff);
     }
 
-    function _transferCollateralToCaller(
+    function _transferStEthToCaller(
+        bytes32 _cdpId,
+        EthVariantZapOperationType _operationType,
         bool _useWstETH,
         uint256 _stEthVal
     ) internal {
         if (_useWstETH) {
             // return wrapped version(WstETH)
             uint256 _wstETHVal = IWstETH(address(wstEth)).wrap(_stEthVal);
+            emit ZapOperationEthVariant(_cdpId, _operationType, false, address(wstEth), _wstETHVal, _stEthVal);
+
             wstEth.transfer(msg.sender, _wstETHVal);
         } else {
             // return original collateral(stETH)
+            emit ZapOperationEthVariant(_cdpId, _operationType, false, address(stEth), _stEthVal, _stEthVal);
             stEth.transfer(msg.sender, _stEthVal);
         }
     }
 
     function _adjustCdpWithPermit(
         bytes32 _cdpId,
-        uint256 _stEthBalanceDecrease,
+        uint256 _collBalanceDecrease,
         uint256 _debtChange,
         bool isDebtIncrease,
         bytes32 _upperHint,
         bytes32 _lowerHint,
-        uint256 _stEthBalanceIncrease,
+        uint256 _collBalanceIncrease,
         bool _useWstETH,
         PositionManagerPermit memory _positionManagerPermit
     ) internal {
@@ -460,8 +490,8 @@ contract EbtcZapRouter is IEbtcZapRouter {
             "EbtcZapRouter: not owner for adjust!"
         );
         require(
-            (_stEthBalanceDecrease > 0 && _stEthBalanceIncrease == 0) ||
-                (_stEthBalanceIncrease > 0 && _stEthBalanceDecrease == 0),
+            (_collBalanceDecrease > 0 && _collBalanceIncrease == 0) ||
+                (_collBalanceIncrease > 0 && _collBalanceDecrease == 0),
             "EbtcZapRouter: can't add and remove collateral at the same time!"
         );
 
@@ -480,17 +510,17 @@ contract EbtcZapRouter is IEbtcZapRouter {
             ebtc.transferFrom(msg.sender, address(this), _debtChange);
         }
 
-        uint256 _collBalBefore = stEth.balanceOf(address(this));
+        uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
         borrowerOperations.adjustCdpWithColl(
             _cdpId,
-            _stEthBalanceDecrease,
+            _collBalanceDecrease,
             _debtChange,
             isDebtIncrease,
             _upperHint,
             _lowerHint,
-            _stEthBalanceIncrease
+            _collBalanceIncrease
         );
-        uint256 _collBalAfter = stEth.balanceOf(address(this));
+        uint256 _zapStEthBalanceAfter = stEth.balanceOf(address(this));
 
         // Send any withdrawn debt back to borrower
         if (isDebtIncrease && _debtChange > 0) {
@@ -498,10 +528,12 @@ contract EbtcZapRouter is IEbtcZapRouter {
         }
 
         // Send any withdrawn collateral to back to borrower
-        if (_stEthBalanceDecrease > 0) {
-            _transferCollateralToCaller(
+        if (_collBalanceDecrease > 0) {
+            _transferStEthToCaller(
+                _cdpId,
+                EthVariantZapOperationType.AdjustCdp,
                 _useWstETH,
-                _collBalAfter - _collBalBefore
+                _zapStEthBalanceAfter - _zapStEthBalanceBefore
             );
         }
     }
