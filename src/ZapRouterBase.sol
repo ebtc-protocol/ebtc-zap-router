@@ -28,7 +28,7 @@ abstract contract ZapRouterBase is LeverageMacroBase {
             params.ebtc,
             params.stEth,
             params.sortedCdps,
-            true
+            false // Do not sweep
         )
     {
         theOwner = msg.sender;
@@ -45,6 +45,23 @@ abstract contract ZapRouterBase is LeverageMacroBase {
         return theOwner;
     }
 
+    function _sweep() private {
+        /**
+         * SWEEP TO CALLER *
+         */
+        // Safe unchecked because known tokens
+        uint256 ebtcBal = ebtcToken.balanceOf(address(this));
+        uint256 collateralBal = stETH.sharesOf(address(this));
+
+        if (ebtcBal > 0) {
+            ebtcToken.transfer(msg.sender, ebtcBal);
+        }
+
+        if (collateralBal > 0) {
+            stETH.transferShares(msg.sender, collateralBal);
+        }
+    }
+
     function _debtToCollateral(uint256 _debt) public returns (uint256) {
         uint256 price = priceFeed.fetchPrice();
         return (_debt * PRECISION) / price;
@@ -52,7 +69,7 @@ abstract contract ZapRouterBase is LeverageMacroBase {
 
     function _openCdpOperation(
         bytes32 _cdpId,
-        OpenCdpOperation memory _cdp,
+        OpenCdpForOperation memory _cdp,
         uint256 _flAmount,
         uint256 _stEthBalance,
         bytes calldata _exchangeData
@@ -61,11 +78,11 @@ abstract contract ZapRouterBase is LeverageMacroBase {
 
         op.tokenToTransferIn = address(stETH);
         op.amountToTransferIn = _stEthBalance;
-        op.operationType = OperationType.OpenCdpOperation;
+        op.operationType = OperationType.OpenCdpForOperation;
         op.OperationData = abi.encode(_cdp);
         op.swapsAfter = _getSwapOperations(address(ebtcToken), _cdp.eBTCToMint, _exchangeData);
 
-        doOperation(
+        _doOperation(
             FlashLoanType.stETH,
             _flAmount,
             op,
@@ -75,8 +92,12 @@ abstract contract ZapRouterBase is LeverageMacroBase {
                 _cdp.eBTCToMint,
                 _cdp.stETHToDeposit,
                 ICdpManagerData.Status.active
-            )
+            ),
+            _cdpId
         );
+
+        // TODO: only sweep diff
+        _sweep();
     }
 
     function _closeCdpOperation(
@@ -102,13 +123,17 @@ abstract contract ZapRouterBase is LeverageMacroBase {
             _exchangeData
         );
 
-        doOperation(
+        _doOperation(
             FlashLoanType.eBTC,
             _debt,
             op,
             PostOperationCheck.isClosed,
-            _getPostCheckParams(_cdpId, 0, 0, ICdpManagerData.Status.closedByOwner)
+            _getPostCheckParams(_cdpId, 0, 0, ICdpManagerData.Status.closedByOwner),
+            bytes32(0)
         );
+
+        // TODO: only sweep diff
+        _sweep();
     }
 
     function _getSwapOperations(
@@ -143,8 +168,7 @@ abstract contract ZapRouterBase is LeverageMacroBase {
                     operator: Operator.gte
                 }),
                 cdpId: _cdpId,
-                expectedStatus: _status,
-                borrower: msg.sender
+                expectedStatus: _status
             });
     }
 

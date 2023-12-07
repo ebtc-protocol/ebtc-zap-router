@@ -32,13 +32,12 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
 
         cdpId = sortedCdps.toCdpId(msg.sender, block.number, sortedCdps.nextCdpNonce());
 
-        OpenCdpOperation memory cdp;
+        OpenCdpForOperation memory cdp;
 
         cdp.eBTCToMint = _debt;
         cdp._upperHint = _upperHint;
         cdp._lowerHint = _lowerHint;
         cdp.stETHToDeposit = totalCollateral;
-        // specifying borrower here = openCdpFor
         cdp.borrower = msg.sender;
 
         _openCdpOperation({
