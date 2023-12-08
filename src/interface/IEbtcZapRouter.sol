@@ -9,6 +9,21 @@ interface IEbtcZapRouter {
         bytes32 s;
     }
 
+    enum EthVariantZapOperationType {
+        OpenCdp,
+        AdjustCdp,
+        CloseCdp
+    }
+
+    event ZapOperationEthVariant(
+        bytes32 indexed cdpId,
+        EthVariantZapOperationType indexed operation,
+        bool isCollateralIncrease,
+        address indexed collateralToken,
+        uint256 collateralTokenDelta,
+        uint256 stEthDelta
+    );
+
     function openCdp(
         uint256 _debt,
         bytes32 _upperHint,
