@@ -21,8 +21,6 @@ contract ZapRouterBaseInvariants is
 {
     uint256 public constant FIXED_COLL_SIZE = 30 ether;
     address internal TEST_FIXED_USER;
-    address internal testWeth;
-    address internal testWstEth;
 
     function setUp() public virtual override {
         super.setUp();
@@ -34,7 +32,8 @@ contract ZapRouterBaseInvariants is
             IStETH(address(collateral)),
             IERC20(address(eBTCToken)),
             IBorrowerOperations(address(borrowerOperations)),
-            ICdpManager(address(cdpManager))
+            ICdpManager(address(cdpManager)),
+            defaultGovernance
         );
         TEST_FIXED_USER = _createUserFromPrivateKey(userPrivateKey);
     }
