@@ -11,8 +11,8 @@ interface IEbtcZapRouter {
 
     enum EthVariantZapOperationType {
         OpenCdp,
-        AdjustCdp,
-        CloseCdp
+        CloseCdp,
+        AdjustCdp
     }
 
     event ZapOperationEthVariant(
@@ -104,13 +104,7 @@ interface IEbtcZapRouter {
         PositionManagerPermit memory _positionManagerPermit
     ) external;
 
-    function closeCdp(
-        bytes32 _cdpId,
-        PositionManagerPermit memory _positionManagerPermit
-    ) external;
+    function closeCdp(bytes32 _cdpId, PositionManagerPermit memory _positionManagerPermit) external;
 
-    function closeCdpForWstETH(
-        bytes32 _cdpId,
-        PositionManagerPermit memory _positionManagerPermit
-    ) external;
+    function closeCdpForWstETH(bytes32 _cdpId, PositionManagerPermit memory _positionManagerPermit) external;
 }

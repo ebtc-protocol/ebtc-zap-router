@@ -8,11 +8,7 @@ contract ZapRouterActor {
     address public zapRouter;
     address public sender;
 
-    constructor(
-        address[] memory _tokens,
-        address _zapRouter,
-        address _sender
-    ) payable {
+    constructor(address[] memory _tokens, address _zapRouter, address _sender) payable {
         tokens = _tokens;
         zapRouter = _zapRouter;
         sender = _sender;
@@ -23,23 +19,20 @@ contract ZapRouterActor {
         }
     }
 
-    function proxy(
-        address _target,
-        bytes memory _calldata,
-        bool spoofSender
-    ) public returns (bool success, bytes memory returnData) {
+    function proxy(address _target, bytes memory _calldata, bool spoofSender)
+        public
+        returns (bool success, bytes memory returnData)
+    {
         if (spoofSender) {
             hevm.prank(sender);
         }
         (success, returnData) = address(_target).call(_calldata);
     }
 
-    function proxy(
-        address _target,
-        bytes memory _calldata,
-        uint256 value,
-        bool spoofSender
-    ) public returns (bool success, bytes memory returnData) {
+    function proxy(address _target, bytes memory _calldata, uint256 value, bool spoofSender)
+        public
+        returns (bool success, bytes memory returnData)
+    {
         if (spoofSender) {
             hevm.prank(sender);
         }

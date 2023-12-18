@@ -15,10 +15,7 @@ import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
 import {WstETH} from "../src/testContracts/WstETH.sol";
 import {IWstETH} from "../src/interface/IWstETH.sol";
 
-contract ZapRouterBaseInvariants is
-    eBTCBaseInvariants,
-    ZapRouterBaseStorageVariables
-{
+contract ZapRouterBaseInvariants is eBTCBaseInvariants, ZapRouterBaseStorageVariables {
     uint256 public constant FIXED_COLL_SIZE = 30 ether;
     address internal TEST_FIXED_USER;
 
@@ -48,40 +45,16 @@ contract ZapRouterBaseInvariants is
         assertEq(zapCdps.length, 0, "Zap should not have a Cdp");
 
         // Confirm Zap has no coins
-        assertEq(
-            collateral.balanceOf(address(zapRouter)),
-            0,
-            "Zap should have no stETH balance"
-        );
-        assertEq(
-            collateral.sharesOf(address(zapRouter)),
-            0,
-            "Zap should have no stETH shares"
-        );
-        assertEq(
-            eBTCToken.balanceOf(address(zapRouter)),
-            0,
-            "Zap should have no eBTC"
-        );
+        assertEq(collateral.balanceOf(address(zapRouter)), 0, "Zap should have no stETH balance");
+        assertEq(collateral.sharesOf(address(zapRouter)), 0, "Zap should have no stETH shares");
+        assertEq(eBTCToken.balanceOf(address(zapRouter)), 0, "Zap should have no eBTC");
         assertEq(address(zapRouter).balance, 0, "Zap should have no raw ETH");
-        assertEq(
-            IERC20(testWeth).balanceOf(address(zapRouter)),
-            0,
-            "Zap should have no wrapped ETH"
-        );
-        assertEq(
-            IERC20(testWstEth).balanceOf(address(zapRouter)),
-            0,
-            "Zap should have no wrapped stETH"
-        );
+        assertEq(IERC20(testWeth).balanceOf(address(zapRouter)), 0, "Zap should have no wrapped ETH");
+        assertEq(IERC20(testWstEth).balanceOf(address(zapRouter)), 0, "Zap should have no wrapped stETH");
 
         // Confirm PM approvals are cleared
-        uint positionManagerApproval = uint256(
-            borrowerOperations.getPositionManagerApproval(
-                _user,
-                address(zapRouter)
-            )
-        );
+        uint256 positionManagerApproval =
+            uint256(borrowerOperations.getPositionManagerApproval(_user, address(zapRouter)));
         assertEq(
             positionManagerApproval,
             uint256(IPositionManagers.PositionManagerApproval.None),
@@ -91,9 +64,7 @@ contract ZapRouterBaseInvariants is
 
     //// utility functions
 
-    function _createUserFromPrivateKey(
-        uint256 _privateKey
-    ) internal returns (address user) {
+    function _createUserFromPrivateKey(uint256 _privateKey) internal returns (address user) {
         user = vm.addr(_privateKey);
     }
 
@@ -101,7 +72,7 @@ contract ZapRouterBaseInvariants is
         address _signer,
         address _positionManager,
         IPositionManagers.PositionManagerApproval _approval,
-        uint _deadline
+        uint256 _deadline
     ) internal returns (bytes32) {
         bytes32 digest = keccak256(
             abi.encodePacked(
@@ -122,26 +93,15 @@ contract ZapRouterBaseInvariants is
         return digest;
     }
 
-    function _generateOneTimePermitFromFixedTestUser()
-        internal
-        returns (IEbtcZapRouter.PositionManagerPermit memory)
-    {
-        uint _deadline = (block.timestamp + deadline);
-        IPositionManagers.PositionManagerApproval _approval = IPositionManagers
-            .PositionManagerApproval
-            .OneTime;
+    function _generateOneTimePermitFromFixedTestUser() internal returns (IEbtcZapRouter.PositionManagerPermit memory) {
+        uint256 _deadline = (block.timestamp + deadline);
+        IPositionManagers.PositionManagerApproval _approval = IPositionManagers.PositionManagerApproval.OneTime;
 
         // Generate signature to one-time approve zap
-        bytes32 digest = _generatePermitSignature(
-            TEST_FIXED_USER,
-            address(zapRouter),
-            _approval,
-            _deadline
-        );
+        bytes32 digest = _generatePermitSignature(TEST_FIXED_USER, address(zapRouter), _approval, _deadline);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivateKey, digest);
 
-        IEbtcZapRouter.PositionManagerPermit memory pmPermit = IEbtcZapRouter
-            .PositionManagerPermit(_deadline, v, r, s);
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = IEbtcZapRouter.PositionManagerPermit(_deadline, v, r, s);
         return pmPermit;
     }
 
@@ -149,48 +109,26 @@ contract ZapRouterBaseInvariants is
         vm.deal(_user, type(uint96).max);
     }
 
-    function _dealWrappedEtherForUser(
-        address _user
-    ) internal returns (uint256) {
-        return
-            _dealWrappedEtherForUserWithAmount(
-                _user,
-                FIXED_COLL_SIZE + 0.2 ether
-            );
+    function _dealWrappedEtherForUser(address _user) internal returns (uint256) {
+        return _dealWrappedEtherForUserWithAmount(_user, FIXED_COLL_SIZE + 0.2 ether);
     }
 
-    function _dealWrappedEtherForUserWithAmount(
-        address _user,
-        uint256 _amt
-    ) internal returns (uint256) {
+    function _dealWrappedEtherForUserWithAmount(address _user, uint256 _amt) internal returns (uint256) {
         require(_amt > 0, "WETH increase expected should > 0!");
         uint256 _balBefore = IERC20(testWeth).balanceOf(_user);
         vm.prank(_user);
         WETH9(testWeth).deposit{value: _amt}();
         uint256 _newWETHBal = IERC20(testWeth).balanceOf(_user) - _balBefore;
-        require(
-            _newWETHBal > 0,
-            "WETH balance should increase as expected at this moment"
-        );
+        require(_newWETHBal > 0, "WETH balance should increase as expected at this moment");
         return _newWETHBal;
     }
 
-    function _dealWrappedStETHForUser(
-        address _user
-    ) internal returns (uint256) {
+    function _dealWrappedStETHForUser(address _user) internal returns (uint256) {
         return
-            _dealWrappedStETHForUserWithAmount(
-                _user,
-                IWstETH(testWstEth).getWstETHByStETH(
-                    FIXED_COLL_SIZE + 0.2 ether
-                )
-            );
+            _dealWrappedStETHForUserWithAmount(_user, IWstETH(testWstEth).getWstETHByStETH(FIXED_COLL_SIZE + 0.2 ether));
     }
 
-    function _dealWrappedStETHForUserWithAmount(
-        address _user,
-        uint256 _amt
-    ) internal returns (uint256) {
+    function _dealWrappedStETHForUserWithAmount(address _user, uint256 _amt) internal returns (uint256) {
         require(_amt > 0, "WstETH increase expected should > 0!");
         uint256 _stETHRequired = IWstETH(testWstEth).getStETHByWstETH(_amt);
 
@@ -198,10 +136,7 @@ contract ZapRouterBaseInvariants is
         collateral.deposit{value: _stETHRequired * 2}();
         collateral.approve(testWstEth, type(uint256).max);
         uint256 _newWstETHBal = IWstETH(testWstEth).wrap(_stETHRequired);
-        require(
-            _newWstETHBal > 0,
-            "WstETH balance should increase as expected at this moment"
-        );
+        require(_newWstETHBal > 0, "WstETH balance should increase as expected at this moment");
         vm.stopPrank();
 
         return _newWstETHBal;
