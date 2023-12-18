@@ -5,16 +5,10 @@ import {ZapRouterPropertiesDescriptions} from "./ZapRouterPropertiesDescriptions
 import {EchidnaAsserts} from "@ebtc/contracts/TestContracts/invariants/echidna/EchidnaAsserts.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 
-abstract contract ZapRouterProperties is
-    ZapRouterStateSnapshots,
-    ZapRouterPropertiesDescriptions,
-    EchidnaAsserts
-{
+abstract contract ZapRouterProperties is ZapRouterStateSnapshots, ZapRouterPropertiesDescriptions, EchidnaAsserts {
     function echidna_ZR_01() public returns (bool) {
-        return
-            (collateral.sharesOf(address(zapRouter)) == 0) &&
-            (collateral.balanceOf(address(zapRouter)) == 0) &&
-            (eBTCToken.balanceOf(address(zapRouter)) == 0);
+        return (collateral.sharesOf(address(zapRouter)) == 0) && (collateral.balanceOf(address(zapRouter)) == 0)
+            && (eBTCToken.balanceOf(address(zapRouter)) == 0);
     }
 
     function echidna_ZR_02() public returns (bool) {
