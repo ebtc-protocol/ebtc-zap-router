@@ -47,17 +47,9 @@ contract ZapRouterBaseInvariants is
         bytes32[] memory zapCdps = sortedCdps.getCdpsOf(address(zapRouter));
         assertEq(zapCdps.length, 0, "Zap should not have a Cdp");
 
-        // Confirm Zap has no coins
-        assertEq(
-            collateral.balanceOf(address(zapRouter)),
-            0,
-            "Zap should have no stETH balance"
-        );
-        assertEq(
-            collateral.sharesOf(address(zapRouter)),
-            0,
-            "Zap should have no stETH shares"
-        );
+        // Confirm Zap has no coins: [native ETH/eBTC/wrapped ETH]
+        // not valid invariant for stETH due to its share mechanism
+        // https://github.com/lidofinance/lido-dao/issues/442
         assertEq(
             eBTCToken.balanceOf(address(zapRouter)),
             0,
@@ -68,11 +60,6 @@ contract ZapRouterBaseInvariants is
             IERC20(testWeth).balanceOf(address(zapRouter)),
             0,
             "Zap should have no wrapped ETH"
-        );
-        assertEq(
-            IERC20(testWstEth).balanceOf(address(zapRouter)),
-            0,
-            "Zap should have no wrapped stETH"
         );
 
         // Confirm PM approvals are cleared

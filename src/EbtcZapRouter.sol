@@ -81,7 +81,14 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _positionManagerPermit
         );
 
-        emit ZapOperationEthVariant(cdpId, EthVariantZapOperationType.OpenCdp, true, address(stEth), _stEthBalance, _collVal);
+        emit ZapOperationEthVariant(
+            cdpId,
+            EthVariantZapOperationType.OpenCdp,
+            true,
+            address(stEth),
+            _stEthBalance,
+            _collVal
+        );
     }
 
     /// @dev Open a CDP with raw native Ether
@@ -107,7 +114,14 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _positionManagerPermit
         );
 
-        emit ZapOperationEthVariant(cdpId, EthVariantZapOperationType.OpenCdp, true, NATIVE_ETH_ADDRESS, _ethBalance, _collVal);
+        emit ZapOperationEthVariant(
+            cdpId,
+            EthVariantZapOperationType.OpenCdp,
+            true,
+            NATIVE_ETH_ADDRESS,
+            _ethBalance,
+            _collVal
+        );
     }
 
     /// @dev Open a CDP with Wrapped Ether
@@ -132,8 +146,15 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _collVal,
             _positionManagerPermit
         );
-        
-        emit ZapOperationEthVariant(cdpId, EthVariantZapOperationType.OpenCdp, true, address(wrappedEth), _wethBalance, _collVal);
+
+        emit ZapOperationEthVariant(
+            cdpId,
+            EthVariantZapOperationType.OpenCdp,
+            true,
+            address(wrappedEth),
+            _wethBalance,
+            _collVal
+        );
     }
 
     /// @dev Open a CDP with Wrapped StETH
@@ -159,7 +180,14 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _positionManagerPermit
         );
 
-        emit ZapOperationEthVariant(cdpId, EthVariantZapOperationType.OpenCdp, true, address(wstEth), _wstEthBalance, _collVal);
+        emit ZapOperationEthVariant(
+            cdpId,
+            EthVariantZapOperationType.OpenCdp,
+            true,
+            address(wstEth),
+            _wstEthBalance,
+            _collVal
+        );
     }
 
     /// @dev Close a CDP with original collateral(stETH) returned to CDP owner
@@ -208,7 +236,14 @@ contract EbtcZapRouter is IEbtcZapRouter {
         uint256 _collBalanceIncrease = _ethBalanceIncrease;
         if (_ethBalanceIncrease > 0) {
             _collBalanceIncrease = _convertRawEthToStETH(_ethBalanceIncrease);
-            emit ZapOperationEthVariant(_cdpId, EthVariantZapOperationType.AdjustCdp, true, NATIVE_ETH_ADDRESS, _ethBalanceIncrease, _collBalanceIncrease);
+            emit ZapOperationEthVariant(
+                _cdpId,
+                EthVariantZapOperationType.AdjustCdp,
+                true,
+                NATIVE_ETH_ADDRESS,
+                _ethBalanceIncrease,
+                _collBalanceIncrease
+            );
         }
 
         _adjustCdpWithPermit(
@@ -250,7 +285,14 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _collBalanceIncrease = _convertWrappedEthToStETH(
                 _wethBalanceIncrease
             );
-            emit ZapOperationEthVariant(_cdpId, EthVariantZapOperationType.AdjustCdp, true, address(wrappedEth), _wethBalanceIncrease, _collBalanceIncrease);
+            emit ZapOperationEthVariant(
+                _cdpId,
+                EthVariantZapOperationType.AdjustCdp,
+                true,
+                address(wrappedEth),
+                _wethBalanceIncrease,
+                _collBalanceIncrease
+            );
         }
 
         _adjustCdpWithPermit(
@@ -294,8 +336,15 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _collBalanceIncrease = _convertWstEthToStETH(
                 _wstEthBalanceIncrease
             );
-            emit ZapOperationEthVariant(_cdpId, EthVariantZapOperationType.AdjustCdp, false, address(wstEth), _wstEthBalanceIncrease, _collBalanceIncrease);
-        } 
+            emit ZapOperationEthVariant(
+                _cdpId,
+                EthVariantZapOperationType.AdjustCdp,
+                false,
+                address(wstEth),
+                _wstEthBalanceIncrease,
+                _collBalanceIncrease
+            );
+        }
 
         _adjustCdpWithPermit(
             _cdpId,
@@ -332,7 +381,14 @@ contract EbtcZapRouter is IEbtcZapRouter {
         PositionManagerPermit memory _positionManagerPermit
     ) external {
         if (_collBalanceIncrease > 0) {
-         emit ZapOperationEthVariant(_cdpId, EthVariantZapOperationType.AdjustCdp, false, address(stEth), _collBalanceIncrease, _collBalanceIncrease);
+            emit ZapOperationEthVariant(
+                _cdpId,
+                EthVariantZapOperationType.AdjustCdp,
+                false,
+                address(stEth),
+                _collBalanceIncrease,
+                _collBalanceIncrease
+            );
         }
         _adjustCdpWithPermit(
             _cdpId,
@@ -452,7 +508,12 @@ contract EbtcZapRouter is IEbtcZapRouter {
         uint256 _zapStEthBalanceAfter = stEth.balanceOf(address(this));
         uint256 _stETHDiff = _zapStEthBalanceAfter - _zapStEthBalanceBefore;
 
-        _transferStEthToCaller(_cdpId, EthVariantZapOperationType.CloseCdp, _useWstETH, _stETHDiff);
+        _transferStEthToCaller(
+            _cdpId,
+            EthVariantZapOperationType.CloseCdp,
+            _useWstETH,
+            _stETHDiff
+        );
     }
 
     function _transferStEthToCaller(
@@ -464,12 +525,26 @@ contract EbtcZapRouter is IEbtcZapRouter {
         if (_useWstETH) {
             // return wrapped version(WstETH)
             uint256 _wstETHVal = IWstETH(address(wstEth)).wrap(_stEthVal);
-            emit ZapOperationEthVariant(_cdpId, _operationType, false, address(wstEth), _wstETHVal, _stEthVal);
+            emit ZapOperationEthVariant(
+                _cdpId,
+                _operationType,
+                false,
+                address(wstEth),
+                _wstETHVal,
+                _stEthVal
+            );
 
             wstEth.transfer(msg.sender, _wstETHVal);
         } else {
             // return original collateral(stETH)
-            emit ZapOperationEthVariant(_cdpId, _operationType, false, address(stEth), _stEthVal, _stEthVal);
+            emit ZapOperationEthVariant(
+                _cdpId,
+                _operationType,
+                false,
+                address(stEth),
+                _stEthVal,
+                _stEthVal
+            );
             stEth.transfer(msg.sender, _stEthVal);
         }
     }
