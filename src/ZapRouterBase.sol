@@ -4,7 +4,7 @@ pragma solidity 0.8.17;
 import {IPositionManagers} from "@ebtc/contracts/Interfaces/IBorrowerOperations.sol";
 import {IPriceFeed} from "@ebtc/contracts/Interfaces/IPriceFeed.sol";
 import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
-import {LeverageMacroBase} from "./LeverageMacroBase.sol";
+import {LeverageMacroBase} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {IEbtcZapRouter} from "./interface/IEbtcZapRouter.sol";
 
 abstract contract ZapRouterBase is LeverageMacroBase {

@@ -4,3 +4,6 @@
 [submodule "lib/ebtc"]
 	path = lib/ebtc
 	url = https://github.com/ebtc-protocol/ebtc
+[submodule "lib/properties"]
+	path = lib/properties
+	url = https://github.com/crytic/properties
