@@ -4,6 +4,10 @@ out/
 node_modules/
 temp/
 
+# Fuzzing
+medusa/
+crytic-export/
+
 # Ignores development broadcast logs
 !/broadcast
 /broadcast/*/31337/

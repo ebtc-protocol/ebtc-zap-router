@@ -61,7 +61,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
     }
 
     function createLeveragedPosition() private returns (address, bytes32) {
-        address user = _createUserFromFixedPrivateKey();
+        address user = vm.addr(userPrivateKey);
 
         _dealCollateralAndPrepForUse(user);
 

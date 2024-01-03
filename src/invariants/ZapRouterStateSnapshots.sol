@@ -58,27 +58,37 @@ abstract contract ZapRouterStateSnapshots is ZapRouterBaseStorageVariables {
 
         (uint256 debt, ) = cdpManager.getSyncedDebtAndCollShares(_cdpId);
 
-        ebtcBefore.nicr = _cdpId != bytes32(0) ? crLens.quoteRealNICR(_cdpId) : 0;
+        ebtcBefore.nicr = _cdpId != bytes32(0)
+            ? crLens.quoteRealNICR(_cdpId)
+            : 0;
         ebtcBefore.icr = _cdpId != bytes32(0)
             ? cdpManager.getCachedICR(_cdpId, ebtcBefore.price)
             : 0;
-        ebtcBefore.cdpColl = _cdpId != bytes32(0) ? cdpManager.getCdpCollShares(_cdpId) : 0;
+        ebtcBefore.cdpColl = _cdpId != bytes32(0)
+            ? cdpManager.getCdpCollShares(_cdpId)
+            : 0;
         ebtcBefore.cdpDebt = _cdpId != bytes32(0) ? debt : 0;
         ebtcBefore.liquidatorRewardShares = _cdpId != bytes32(0)
             ? cdpManager.getCdpLiquidatorRewardShares(_cdpId)
             : 0;
-        ebtcBefore.cdpStatus = _cdpId != bytes32(0) ? cdpManager.getCdpStatus(_cdpId) : 0;
+        ebtcBefore.cdpStatus = _cdpId != bytes32(0)
+            ? cdpManager.getCdpStatus(_cdpId)
+            : 0;
 
         ebtcBefore.isRecoveryMode = crLens.quoteCheckRecoveryMode() == 1; /// @audit crLens
-        (ebtcBefore.feeSplit, , ) = collateral.getPooledEthByShares(cdpManager.DECIMAL_PRECISION()) >
-            cdpManager.stEthIndex()
+        (ebtcBefore.feeSplit, , ) = collateral.getPooledEthByShares(
+            cdpManager.DECIMAL_PRECISION()
+        ) > cdpManager.stEthIndex()
             ? cdpManager.calcFeeUponStakingReward(
                 collateral.getPooledEthByShares(cdpManager.DECIMAL_PRECISION()),
                 cdpManager.stEthIndex()
             )
             : (0, 0, 0);
-        ebtcBefore.feeRecipientTotalColl = collateral.balanceOf(activePool.feeRecipientAddress());
-        ebtcBefore.feeRecipientCollShares = activePool.getFeeRecipientClaimableCollShares();
+        ebtcBefore.feeRecipientTotalColl = collateral.balanceOf(
+            activePool.feeRecipientAddress()
+        );
+        ebtcBefore.feeRecipientCollShares = activePool
+            .getFeeRecipientClaimableCollShares();
         ebtcBefore.actorColl = collateral.balanceOf(address(actor));
         ebtcBefore.actorEbtc = eBTCToken.balanceOf(address(actor));
         ebtcBefore.actorCdpCount = sortedCdps.cdpCountOf(address(actor));
@@ -88,16 +98,21 @@ abstract contract ZapRouterStateSnapshots is ZapRouterBaseStorageVariables {
         ebtcBefore.ethPerShare = collateral.getEthPerShare();
         ebtcBefore.activePoolDebt = activePool.getSystemDebt();
         ebtcBefore.activePoolColl = activePool.getSystemCollShares();
-        ebtcBefore.collSurplusPool = collSurplusPool.getTotalSurplusCollShares();
-        ebtcBefore.lastGracePeriodStartTimestamp = cdpManager.lastGracePeriodStartTimestamp();
+        ebtcBefore.collSurplusPool = collSurplusPool
+            .getTotalSurplusCollShares();
+        ebtcBefore.lastGracePeriodStartTimestamp = cdpManager
+            .lastGracePeriodStartTimestamp();
         ebtcBefore.lastGracePeriodStartTimestampIsSet =
-            cdpManager.lastGracePeriodStartTimestamp() != cdpManager.UNSET_TIMESTAMP();
+            cdpManager.lastGracePeriodStartTimestamp() !=
+            cdpManager.UNSET_TIMESTAMP();
         ebtcBefore.hasGracePeriodPassed =
-            cdpManager.lastGracePeriodStartTimestamp() != cdpManager.UNSET_TIMESTAMP() &&
+            cdpManager.lastGracePeriodStartTimestamp() !=
+            cdpManager.UNSET_TIMESTAMP() &&
             block.timestamp >
             cdpManager.lastGracePeriodStartTimestamp() +
                 cdpManager.recoveryModeGracePeriodDuration();
-        ebtcBefore.systemDebtRedistributionIndex = cdpManager.systemDebtRedistributionIndex();
+        ebtcBefore.systemDebtRedistributionIndex = cdpManager
+            .systemDebtRedistributionIndex();
         ebtcBefore.newTcr = crLens.quoteRealTCR();
         ebtcBefore.newIcr = crLens.quoteRealICR(_cdpId);
 
@@ -114,26 +129,42 @@ abstract contract ZapRouterStateSnapshots is ZapRouterBaseStorageVariables {
     function _after(bytes32 _cdpId, address _user) internal {
         ebtcAfter.price = priceFeedMock.fetchPrice();
 
-        ebtcAfter.nicr = _cdpId != bytes32(0) ? crLens.quoteRealNICR(_cdpId) : 0;
-        ebtcAfter.icr = _cdpId != bytes32(0) ? cdpManager.getCachedICR(_cdpId, ebtcAfter.price) : 0;
-        ebtcAfter.cdpColl = _cdpId != bytes32(0) ? cdpManager.getCdpCollShares(_cdpId) : 0;
-        ebtcAfter.cdpDebt = _cdpId != bytes32(0) ? cdpManager.getCdpDebt(_cdpId) : 0;
+        ebtcAfter.nicr = _cdpId != bytes32(0)
+            ? crLens.quoteRealNICR(_cdpId)
+            : 0;
+        ebtcAfter.icr = _cdpId != bytes32(0)
+            ? cdpManager.getCachedICR(_cdpId, ebtcAfter.price)
+            : 0;
+        ebtcAfter.cdpColl = _cdpId != bytes32(0)
+            ? cdpManager.getCdpCollShares(_cdpId)
+            : 0;
+        ebtcAfter.cdpDebt = _cdpId != bytes32(0)
+            ? cdpManager.getCdpDebt(_cdpId)
+            : 0;
         ebtcAfter.liquidatorRewardShares = _cdpId != bytes32(0)
             ? cdpManager.getCdpLiquidatorRewardShares(_cdpId)
             : 0;
-        ebtcAfter.cdpStatus = _cdpId != bytes32(0) ? cdpManager.getCdpStatus(_cdpId) : 0;
+        ebtcAfter.cdpStatus = _cdpId != bytes32(0)
+            ? cdpManager.getCdpStatus(_cdpId)
+            : 0;
 
-        ebtcAfter.isRecoveryMode = cdpManager.checkRecoveryMode(ebtcAfter.price); /// @audit This is fine as is because after the system is synched
-        (ebtcAfter.feeSplit, , ) = collateral.getPooledEthByShares(cdpManager.DECIMAL_PRECISION()) >
-            cdpManager.stEthIndex()
+        ebtcAfter.isRecoveryMode = cdpManager.checkRecoveryMode(
+            ebtcAfter.price
+        ); /// @audit This is fine as is because after the system is synched
+        (ebtcAfter.feeSplit, , ) = collateral.getPooledEthByShares(
+            cdpManager.DECIMAL_PRECISION()
+        ) > cdpManager.stEthIndex()
             ? cdpManager.calcFeeUponStakingReward(
                 collateral.getPooledEthByShares(cdpManager.DECIMAL_PRECISION()),
                 cdpManager.stEthIndex()
             )
             : (0, 0, 0);
 
-        ebtcAfter.feeRecipientTotalColl = collateral.balanceOf(activePool.feeRecipientAddress());
-        ebtcAfter.feeRecipientCollShares = activePool.getFeeRecipientClaimableCollShares();
+        ebtcAfter.feeRecipientTotalColl = collateral.balanceOf(
+            activePool.feeRecipientAddress()
+        );
+        ebtcAfter.feeRecipientCollShares = activePool
+            .getFeeRecipientClaimableCollShares();
         ebtcAfter.actorColl = collateral.balanceOf(address(actor));
         ebtcAfter.actorEbtc = eBTCToken.balanceOf(address(actor));
         ebtcAfter.actorCdpCount = sortedCdps.cdpCountOf(address(actor));
@@ -144,15 +175,19 @@ abstract contract ZapRouterStateSnapshots is ZapRouterBaseStorageVariables {
         ebtcAfter.activePoolDebt = activePool.getSystemDebt();
         ebtcAfter.activePoolColl = activePool.getSystemCollShares();
         ebtcAfter.collSurplusPool = collSurplusPool.getTotalSurplusCollShares();
-        ebtcAfter.lastGracePeriodStartTimestamp = cdpManager.lastGracePeriodStartTimestamp();
+        ebtcAfter.lastGracePeriodStartTimestamp = cdpManager
+            .lastGracePeriodStartTimestamp();
         ebtcAfter.lastGracePeriodStartTimestampIsSet =
-            cdpManager.lastGracePeriodStartTimestamp() != cdpManager.UNSET_TIMESTAMP();
+            cdpManager.lastGracePeriodStartTimestamp() !=
+            cdpManager.UNSET_TIMESTAMP();
         ebtcAfter.hasGracePeriodPassed =
-            cdpManager.lastGracePeriodStartTimestamp() != cdpManager.UNSET_TIMESTAMP() &&
+            cdpManager.lastGracePeriodStartTimestamp() !=
+            cdpManager.UNSET_TIMESTAMP() &&
             block.timestamp >
             cdpManager.lastGracePeriodStartTimestamp() +
                 cdpManager.recoveryModeGracePeriodDuration();
-        ebtcAfter.systemDebtRedistributionIndex = cdpManager.systemDebtRedistributionIndex();
+        ebtcAfter.systemDebtRedistributionIndex = cdpManager
+            .systemDebtRedistributionIndex();
 
         ebtcAfter.newTcr = crLens.quoteRealTCR();
         ebtcAfter.newIcr = crLens.quoteRealICR(_cdpId);
@@ -218,7 +253,9 @@ abstract contract ZapRouterStateSnapshots is ZapRouterBaseStorageVariables {
                 .concat(ebtcAfter.feeSplit.pretty())
                 .concat("\n");
         }
-        if (ebtcBefore.feeRecipientTotalColl != ebtcAfter.feeRecipientTotalColl) {
+        if (
+            ebtcBefore.feeRecipientTotalColl != ebtcAfter.feeRecipientTotalColl
+        ) {
             log = log
                 .concat("feeRecipientTotalColl\t")
                 .concat(ebtcBefore.feeRecipientTotalColl.pretty())
@@ -266,7 +303,10 @@ abstract contract ZapRouterStateSnapshots is ZapRouterBaseStorageVariables {
                 .concat(ebtcAfter.cdpDebt.pretty())
                 .concat("\n");
         }
-        if (ebtcBefore.liquidatorRewardShares != ebtcAfter.liquidatorRewardShares) {
+        if (
+            ebtcBefore.liquidatorRewardShares !=
+            ebtcAfter.liquidatorRewardShares
+        ) {
             log = log
                 .concat("liquidatorRewardShares\t\t")
                 .concat(ebtcBefore.liquidatorRewardShares.pretty())
@@ -330,7 +370,10 @@ abstract contract ZapRouterStateSnapshots is ZapRouterBaseStorageVariables {
                 .concat(ebtcAfter.isRecoveryMode.pretty())
                 .concat("\n");
         }
-        if (ebtcBefore.lastGracePeriodStartTimestamp != ebtcAfter.lastGracePeriodStartTimestamp) {
+        if (
+            ebtcBefore.lastGracePeriodStartTimestamp !=
+            ebtcAfter.lastGracePeriodStartTimestamp
+        ) {
             log = log
                 .concat("lastGracePeriodStartTimestamp\t")
                 .concat(ebtcBefore.lastGracePeriodStartTimestamp.pretty())
@@ -357,7 +400,10 @@ abstract contract ZapRouterStateSnapshots is ZapRouterBaseStorageVariables {
                 .concat(ebtcAfter.hasGracePeriodPassed.pretty())
                 .concat("\n");
         }
-        if (ebtcBefore.systemDebtRedistributionIndex != ebtcAfter.systemDebtRedistributionIndex) {
+        if (
+            ebtcBefore.systemDebtRedistributionIndex !=
+            ebtcAfter.systemDebtRedistributionIndex
+        ) {
             log = log
                 .concat("systemDebtRedistributionIndex\t\t")
                 .concat(ebtcBefore.systemDebtRedistributionIndex.pretty())
