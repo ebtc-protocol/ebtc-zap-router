@@ -28,7 +28,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         wrappedEth = IERC20(params.weth);
         wstEth = IERC20(params.wstEth);
 
-        wstEth.approve(address(wstEth), type(uint256).max);
+        stETH.approve(address(wstEth), type(uint256).max);
     }
 
     function temp_openCdpWithLeverage(
