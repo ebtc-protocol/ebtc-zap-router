@@ -1,27 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-interface IEbtcZapRouter {
-    struct PositionManagerPermit {
-        uint256 deadline;
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-    }
+import {IEbtcZapRouterBase} from "./IEbtcZapRouterBase.sol";
 
-    struct DeploymentParams {
-        address borrowerOperations;
-        address activePool;
-        address cdpManager;
-        address ebtc;
-        address stEth;
-        address weth;
-        address wstEth;
-        address sortedCdps;
-        address priceFeed;
-        address dex;
-    }
-
+interface IEbtcZapRouter is IEbtcZapRouterBase {
     enum EthVariantZapOperationType {
         OpenCdp,
         AdjustCdp,

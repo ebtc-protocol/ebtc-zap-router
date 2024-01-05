@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {EbtcZapRouter} from "../src/EbtcZapRouter.sol";
+import {EbtcLeverageZapRouter} from "../src/EbtcLeverageZapRouter.sol";
 import {ZapRouterBaseStorageVariables} from "../src/invariants/ZapRouterBaseStorageVariables.sol";
 import {eBTCBaseInvariants} from "@ebtc/foundry_test/BaseInvariants.sol";
 import {ICdpManager} from "@ebtc/contracts/interfaces/ICdpManager.sol";
@@ -11,6 +12,8 @@ import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.so
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {Mock1Inch} from "@ebtc/contracts/TestContracts/Mock1Inch.sol";
 import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
+import {IEbtcLeverageZapRouter} from "../src/interface/IEbtcLeverageZapRouter.sol";
+import {IEbtcZapRouterBase} from "../src/interface/IEbtcZapRouterBase.sol";
 import {WETH9} from "@ebtc/contracts/TestContracts/WETH9.sol";
 import {IStETH} from "../src/interface/IStETH.sol";
 import {WstETH} from "../src/testContracts/WstETH.sol";
@@ -29,8 +32,16 @@ contract ZapRouterBaseInvariants is
         mockDex = new Mock1Inch(address(eBTCToken), address(collateral));
         testWeth = address(new WETH9());
         testWstEth = address(new WstETH(address(collateral)));
-
-        zapRouter = new EbtcZapRouter(IEbtcZapRouter.DeploymentParams({
+        zapRouter = new EbtcZapRouter(
+            IERC20(testWstEth),
+            IERC20(testWeth),
+            IStETH(address(collateral)),
+            IERC20(address(eBTCToken)),
+            IBorrowerOperations(address(borrowerOperations)),
+            ICdpManager(address(cdpManager)),
+            defaultGovernance
+        );
+        leverageZapRouter = new EbtcLeverageZapRouter(IEbtcLeverageZapRouter.DeploymentParams({
             borrowerOperations: address(borrowerOperations),
             activePool: address(activePool),
             cdpManager: address(cdpManager),
@@ -147,7 +158,7 @@ contract ZapRouterBaseInvariants is
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivateKey, digest);
 
-        IEbtcZapRouter.PositionManagerPermit memory pmPermit = IEbtcZapRouter
+        IEbtcZapRouterBase.PositionManagerPermit memory pmPermit = IEbtcZapRouterBase
             .PositionManagerPermit(_deadline, v, r, s);
         return pmPermit;
     }

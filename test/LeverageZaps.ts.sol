@@ -9,6 +9,7 @@ import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperation
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
 import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
+import {IEbtcZapRouterBase} from "../src/interface/IEbtcZapRouterBase.sol";
 
 interface ICdpCdps {
     function Cdps(bytes32) external view returns (ICdpManagerData.Cdp memory);
@@ -52,10 +53,10 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         vm.startPrank(user);
 
         // Generate signature to one-time approve zap
-        bytes32 digest = _generatePermitSignature(user, address(zapRouter), _approval, _deadline);
+        bytes32 digest = _generatePermitSignature(user, address(leverageZapRouter), _approval, _deadline);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivateKey, digest);
 
-        pmPermit = IEbtcZapRouter.PositionManagerPermit(_deadline, v, r, s);
+        pmPermit = IEbtcZapRouterBase.PositionManagerPermit(_deadline, v, r, s);
 
         vm.stopPrank();
     }
@@ -69,13 +70,13 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         vm.startPrank(user);
 
-        collateral.approve(address(zapRouter), type(uint256).max);
+        collateral.approve(address(leverageZapRouter), type(uint256).max);
 
         bytes32 expectedCdpId = sortedCdps.toCdpId(user, block.number, sortedCdps.nextCdpNonce());
 
         // Get before balances
         assertEq(
-            zapRouter.temp_openCdpWithLeverage(
+            leverageZapRouter.openCdp(
                 1e18, // Debt amount
                 bytes32(0),
                 bytes32(0),
@@ -109,17 +110,17 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         assertEq(userCdps.length, 1, "User should have 1 cdp");
 
         // Confirm Zap has no cdps
-        bytes32[] memory zapCdps = sortedCdps.getCdpsOf(address(zapRouter));
+        bytes32[] memory zapCdps = sortedCdps.getCdpsOf(address(leverageZapRouter));
         assertEq(zapCdps.length, 0, "Zap should not have a Cdp");
 
         // Confirm Zap has no coins
-        assertEq(collateral.balanceOf(address(zapRouter)), 0, "Zap should have no stETH balance");
-        assertEq(collateral.sharesOf(address(zapRouter)), 0, "Zap should have no stETH shares");
-        assertEq(eBTCToken.balanceOf(address(zapRouter)), 0, "Zap should have no eBTC");
+        assertEq(collateral.balanceOf(address(leverageZapRouter)), 0, "Zap should have no stETH balance");
+        assertEq(collateral.sharesOf(address(leverageZapRouter)), 0, "Zap should have no stETH shares");
+        assertEq(eBTCToken.balanceOf(address(leverageZapRouter)), 0, "Zap should have no eBTC");
 
         // Confirm PM approvals are cleared
         uint positionManagerApproval = uint256(
-            borrowerOperations.getPositionManagerApproval(user, address(zapRouter))
+            borrowerOperations.getPositionManagerApproval(user, address(leverageZapRouter))
         );
         assertEq(
             positionManagerApproval,
@@ -148,7 +149,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             cdpInfo.debt
         );
 
-        zapRouter.temp_closeCdpWithLeverage(
+        leverageZapRouter.closeCdp(
             cdpId,
             pmPermit,
             10050, // 0.5% slippage

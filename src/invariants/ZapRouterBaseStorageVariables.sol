@@ -2,12 +2,14 @@
 pragma solidity 0.8.17;
 
 import {EbtcZapRouter} from "../EbtcZapRouter.sol";
+import {EbtcLeverageZapRouter} from "../EbtcLeverageZapRouter.sol";
 import {ZapRouterActor} from "./ZapRouterActor.sol";
 import {BaseStorageVariables} from "@ebtc/contracts/TestContracts/BaseStorageVariables.sol";
 import {Mock1Inch} from "@ebtc/contracts/TestContracts/Mock1Inch.sol";
 
 abstract contract ZapRouterBaseStorageVariables is BaseStorageVariables {
     EbtcZapRouter public zapRouter;
+    EbtcLeverageZapRouter public leverageZapRouter;
     uint256 internal constant userPrivateKey = 0xabc123;
     uint256 internal constant deadline = 1800;
 

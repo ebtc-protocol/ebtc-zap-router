@@ -5,184 +5,37 @@ import {IPositionManagers} from "@ebtc/contracts/Interfaces/IBorrowerOperations.
 import {IPriceFeed} from "@ebtc/contracts/Interfaces/IPriceFeed.sol";
 import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {LeverageMacroBase} from "@ebtc/contracts/LeverageMacroBase.sol";
+import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {IEbtcZapRouter} from "./interface/IEbtcZapRouter.sol";
+import {IWrappedETH} from "./interface/IWrappedETH.sol";
+import {IStETH} from "./interface/IStETH.sol";
 
-abstract contract ZapRouterBase is LeverageMacroBase {
-    uint256 internal constant PRECISION = 1e18;
-    uint256 internal constant SLIPPAGE_PRECISION = 1e4;
-    /// @notice Collateral buffer used to account for slippage and fees
-    /// 9995 = 0.05%
-    uint256 internal constant COLLATERAL_BUFFER = 9995;
+abstract contract ZapRouterBase {
+    IStETH public immutable stEth;
+    IERC20 public immutable wrappedEth;
 
-    address internal immutable theOwner;
-    IPriceFeed internal immutable priceFeed;
-    address internal immutable dex;
-
-    constructor(
-        IEbtcZapRouter.DeploymentParams memory params
-    )
-        LeverageMacroBase(
-            params.borrowerOperations,
-            params.activePool,
-            params.cdpManager,
-            params.ebtc,
-            params.stEth,
-            params.sortedCdps,
-            false // Do not sweep
-        )
-    {
-        theOwner = msg.sender;
-        priceFeed = IPriceFeed(params.priceFeed);
-        dex = params.dex;
-
-        // Infinite Approvals @TODO: do these stay at max for each token?
-        ebtcToken.approve(address(borrowerOperations), type(uint256).max);
-        stETH.approve(address(borrowerOperations), type(uint256).max);
-        stETH.approve(address(activePool), type(uint256).max);
+    constructor(IERC20 _wstEth, IStETH _stEth) {
+        wrappedEth = _wstEth;
+        stEth = _stEth;
     }
 
-    function owner() public override returns (address) {
-        return theOwner;
+    function _depositRawEthIntoLido(uint256 _initialETH) internal returns (uint256) {
+        // check before-after balances for 1-wei corner case
+        uint256 _balBefore = stEth.balanceOf(address(this));
+        // TODO call submit() with a referral?
+        payable(address(stEth)).call{value: _initialETH}("");
+        uint256 _deposit = stEth.balanceOf(address(this)) - _balBefore;
+        return _deposit;
     }
 
-    function _sweep() private {
-        /**
-         * SWEEP TO CALLER *
-         */
-        // Safe unchecked because known tokens
-        uint256 ebtcBal = ebtcToken.balanceOf(address(this));
-        uint256 collateralBal = stETH.sharesOf(address(this));
+    function _convertWrappedEthToStETH(uint256 _initialWETH) internal returns (uint256) {
+        uint256 _wETHBalBefore = wrappedEth.balanceOf(address(this));
+        wrappedEth.transferFrom(msg.sender, address(this), _initialWETH);
+        uint256 _wETHReiceived = wrappedEth.balanceOf(address(this)) - _wETHBalBefore;
 
-        if (ebtcBal > 0) {
-            ebtcToken.transfer(msg.sender, ebtcBal);
-        }
-
-        if (collateralBal > 0) {
-            stETH.transferShares(msg.sender, collateralBal);
-        }
-    }
-
-    function _debtToCollateral(uint256 _debt) public returns (uint256) {
-        uint256 price = priceFeed.fetchPrice();
-        return (_debt * PRECISION) / price;
-    }
-
-    function _openCdpOperation(
-        bytes32 _cdpId,
-        OpenCdpForOperation memory _cdp,
-        uint256 _flAmount,
-        uint256 _stEthBalance,
-        bytes calldata _exchangeData
-    ) internal {
-        LeverageMacroOperation memory op;
-
-        op.tokenToTransferIn = address(stETH);
-        op.amountToTransferIn = _stEthBalance;
-        op.operationType = OperationType.OpenCdpForOperation;
-        op.OperationData = abi.encode(_cdp);
-        op.swapsAfter = _getSwapOperations(address(ebtcToken), _cdp.eBTCToMint, _exchangeData);
-
-        _doOperation(
-            FlashLoanType.stETH,
-            _flAmount,
-            op,
-            PostOperationCheck.openCdp,
-            _getPostCheckParams(
-                _cdpId,
-                _cdp.eBTCToMint,
-                _cdp.stETHToDeposit,
-                ICdpManagerData.Status.active
-            ),
-            _cdpId
-        );
-
-        // TODO: only sweep diff
-        _sweep();
-    }
-
-    function _closeCdpOperation(
-        bytes32 _cdpId,
-        uint256 _debt,
-        uint256 _flashFee,
-        uint256 _maxSlippage,
-        bytes calldata _exchangeData
-    ) internal {
-        CloseCdpOperation memory cdp;
-
-        cdp._cdpId = _cdpId;
-
-        LeverageMacroOperation memory op;
-
-        op.operationType = OperationType.CloseCdpOperation;
-        op.OperationData = abi.encode(cdp);
-        op.swapsAfter = _getSwapOperations(
-            address(stETH),
-            // This is an exact out trade, so we specify the max collateral
-            // amount the DEX is allowed to pull
-            (_debtToCollateral(_debt + _flashFee) * _maxSlippage) / SLIPPAGE_PRECISION,
-            _exchangeData
-        );
-
-        _doOperation(
-            FlashLoanType.eBTC,
-            _debt,
-            op,
-            PostOperationCheck.isClosed,
-            _getPostCheckParams(_cdpId, 0, 0, ICdpManagerData.Status.closedByOwner),
-            bytes32(0)
-        );
-
-        // TODO: only sweep diff
-        _sweep();
-    }
-
-    function _getSwapOperations(
-        address _tokenForSwap,
-        uint256 _exactApproveAmount,
-        bytes calldata _exchangeData
-    ) internal view returns (SwapOperation[] memory swaps) {
-        swaps = new SwapOperation[](1);
-
-        swaps[0].tokenForSwap = _tokenForSwap;
-        // TODO: approve target maybe different
-        swaps[0].addressForApprove = dex;
-        swaps[0].exactApproveAmount = _exactApproveAmount;
-        swaps[0].addressForSwap = dex;
-        // TODO: exchange data needs to be passed in for aggregators (i.e. ZeroEx)
-        // this trade can be generated for now
-        swaps[0].calldataForSwap = _exchangeData;
-        // op.swapChecks TODO: add proper checks
-    }
-
-    function _getPostCheckParams(
-        bytes32 _cdpId,
-        uint256 _debt,
-        uint256 _totalCollateral,
-        ICdpManagerData.Status _status
-    ) internal view returns (PostCheckParams memory) {
-        return
-            PostCheckParams({
-                expectedDebt: CheckValueAndType({value: _debt, operator: Operator.lte}),
-                expectedCollateral: CheckValueAndType({
-                    value: _totalCollateral,
-                    operator: Operator.gte
-                }),
-                cdpId: _cdpId,
-                expectedStatus: _status
-            });
-    }
-
-    function _permitPositionManagerApproval(
-        IEbtcZapRouter.PositionManagerPermit memory _positionManagerPermit
-    ) internal {
-        borrowerOperations.permitPositionManagerApproval(
-            msg.sender,
-            address(this),
-            IPositionManagers.PositionManagerApproval.OneTime,
-            _positionManagerPermit.deadline,
-            _positionManagerPermit.v,
-            _positionManagerPermit.r,
-            _positionManagerPermit.s
-        );
+        uint256 _rawETHBalBefore = address(this).balance;
+        IWrappedETH(address(wrappedEth)).withdraw(_wETHReiceived);
+        uint256 _rawETHConverted = address(this).balance - _rawETHBalBefore;
+        return _depositRawEthIntoLido(_rawETHConverted);
     }
 }

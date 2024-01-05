@@ -13,8 +13,11 @@ import {WETH9} from "@ebtc/contracts/TestContracts/WETH9.sol";
 import {IStETH} from "../../src/interface/IStETH.sol";
 import {ZapRouterProperties} from "../../src/invariants/ZapRouterProperties.sol";
 import {EbtcZapRouter} from "../../src/EbtcZapRouter.sol";
+import {EbtcLeverageZapRouter} from "../../src/EbtcLeverageZapRouter.sol";
 import {ZapRouterActor} from "../../src/invariants/ZapRouterActor.sol";
 import {IEbtcZapRouter} from "../../src/interface/IEbtcZapRouter.sol";
+import {IEbtcLeverageZapRouter} from "../../src/interface/IEbtcLeverageZapRouter.sol";
+import {IEbtcZapRouterBase} from "../../src/interface/IEbtcZapRouterBase.sol";
 import {WstETH} from "../../src/testContracts/WstETH.sol";
 
 abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
@@ -23,7 +26,16 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         mockDex = new Mock1Inch(address(eBTCToken), address(collateral));
         testWeth = address(new WETH9());
         testWstEth = address(new WstETH(address(collateral)));
-        zapRouter = new EbtcZapRouter(IEbtcZapRouter.DeploymentParams({
+        zapRouter = new EbtcZapRouter(
+            IERC20(testWstEth),
+            IERC20(testWeth),
+            IStETH(address(collateral)),
+            IERC20(address(eBTCToken)),
+            IBorrowerOperations(address(borrowerOperations)),
+            ICdpManager(address(cdpManager)),
+            defaultGovernance
+        );
+        leverageZapRouter = new EbtcLeverageZapRouter(IEbtcLeverageZapRouter.DeploymentParams({
             borrowerOperations: address(borrowerOperations),
             activePool: address(activePool),
             cdpManager: address(cdpManager),
@@ -186,7 +198,7 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
     function _generateOneTimePermit(
         address user,
         uint256 pk
-    ) internal returns (IEbtcZapRouter.PositionManagerPermit memory) {
+    ) internal returns (IEbtcZapRouterBase.PositionManagerPermit memory) {
         uint _deadline = (block.timestamp + deadline);
         IPositionManagers.PositionManagerApproval _approval = IPositionManagers
             .PositionManagerApproval
@@ -201,7 +213,7 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         );
         (uint8 v, bytes32 r, bytes32 s) = hevm.sign(pk, digest);
 
-        IEbtcZapRouter.PositionManagerPermit memory pmPermit = IEbtcZapRouter
+        IEbtcZapRouterBase.PositionManagerPermit memory pmPermit = IEbtcZapRouterBase
             .PositionManagerPermit(_deadline, v, r, s);
         return pmPermit;
     }
@@ -231,7 +243,7 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         );
         _ethBalance = between(requiredCollAmount, minCollAmount, maxCollAmount);
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
                 zapActorKey
@@ -287,7 +299,7 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             maxCollAmount
         );
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
                 zapActorKey
@@ -342,7 +354,7 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             maxCollAmount
         );
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
                 zapActorKey
@@ -381,7 +393,7 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             "CDP ID must not be null if the index is valid"
         );
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
                 zapActorKey
@@ -443,7 +455,7 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             );
         }
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
                 zapActorKey
@@ -512,7 +524,7 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             );
         }
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
                 zapActorKey
@@ -581,7 +593,7 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             );
         }
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
                 zapActorKey
@@ -606,5 +618,9 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         t(success, "Call shouldn't fail");
 
         _checkApproval(address(zapSender));
+    }
+
+    function openLeveragedCdpWithEth() public setup {
+        
     }
 }
