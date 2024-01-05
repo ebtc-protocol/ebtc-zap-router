@@ -16,4 +16,16 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         address priceFeed;
         address dex;
     }
+
+    struct AdjustCdpParams {
+        uint256 _ebtcLoanAmount;
+        uint256 _debtChange;
+        bool _isDebtIncrease;
+        bytes32 _upperHint;
+        bytes32 _lowerHint;
+        uint256 _stEthLoanAmount;
+        uint256 _collBalanceDecrease;
+        uint256 _collBalanceIncrease;
+        bool _useWstETHForDecrease;
+    }
 }

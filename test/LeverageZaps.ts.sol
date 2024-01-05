@@ -61,6 +61,16 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         vm.stopPrank();
     }
 
+    function _debtToCollateral(uint256 _debt) public returns (uint256) {
+        uint256 price = priceFeedMock.fetchPrice();
+        return (_debt * 1e18) / price;
+    }
+
+    uint256 internal constant SLIPPAGE_PRECISION = 1e4;
+    /// @notice Collateral buffer used to account for slippage and fees
+    /// 9995 = 0.05%
+    uint256 internal constant COLLATERAL_BUFFER = 9995;
+
     function createLeveragedPosition() private returns (address, bytes32) {
         address user = vm.addr(userPrivateKey);
 
@@ -74,13 +84,19 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         bytes32 expectedCdpId = sortedCdps.toCdpId(user, block.number, sortedCdps.nextCdpNonce());
 
+        uint256 _debt = 1e18;
+        uint256 flAmount = _debtToCollateral(_debt);
+        uint256 marginAmount = 5 ether;
+
         // Get before balances
         assertEq(
             leverageZapRouter.openCdp(
-                1e18, // Debt amount
+                _debt, // Debt amount
                 bytes32(0),
                 bytes32(0),
-                5 ether, // Margin amount
+                flAmount,
+                marginAmount, // Margin amount
+                (flAmount + marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
                 pmPermit,
                 abi.encodeWithSelector(
                     mockDex.swap.selector,
@@ -149,10 +165,12 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             cdpInfo.debt
         );
 
+        uint256 _maxSlippage = 10050; // 0.5% slippage
+
         leverageZapRouter.closeCdp(
             cdpId,
             pmPermit,
-            10050, // 0.5% slippage
+            (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION, 
             abi.encodeWithSelector(
                 mockDex.swapExactOut.selector,
                 address(collateral),

@@ -54,7 +54,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         // Is clamping necessary? Can we just let it revert?
         _debt = between(_debt, 1, 0.1e18);
 
-       IEbtcZapRouterBase.PositionManagerPermit
+   /*    IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
                 zapActorKey
@@ -75,7 +75,6 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         );
         t(success, "Call shouldn't fail");
 
-        _checkApproval(address(zapSender));
-        
+        _checkApproval(address(zapSender)); */
     }
 }

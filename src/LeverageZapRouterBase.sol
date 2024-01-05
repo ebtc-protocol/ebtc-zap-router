@@ -12,10 +12,6 @@ import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 
 abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
     uint256 internal constant PRECISION = 1e18;
-    uint256 internal constant SLIPPAGE_PRECISION = 1e4;
-    /// @notice Collateral buffer used to account for slippage and fees
-    /// 9995 = 0.05%
-    uint256 internal constant COLLATERAL_BUFFER = 9995;
 
     address internal immutable theOwner;
     IPriceFeed internal immutable priceFeed;
@@ -107,8 +103,8 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
     function _closeCdpOperation(
         bytes32 _cdpId,
         uint256 _debt,
-        uint256 _flashFee,
-        uint256 _maxSlippage,
+      //  uint256 _flashFee,
+        uint256 _stEthAmount,
         bytes calldata _exchangeData
     ) internal {
         CloseCdpOperation memory cdp;
@@ -123,7 +119,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
             address(stETH),
             // This is an exact out trade, so we specify the max collateral
             // amount the DEX is allowed to pull
-            (_debtToCollateral(_debt + _flashFee) * _maxSlippage) / SLIPPAGE_PRECISION,
+            _stEthAmount,
             _exchangeData
         );
 
@@ -177,7 +173,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
     }
 
     function _permitPositionManagerApproval(
-        IEbtcLeverageZapRouter.PositionManagerPermit memory _positionManagerPermit
+        IEbtcLeverageZapRouter.PositionManagerPermit calldata _positionManagerPermit
     ) internal {
         borrowerOperations.permitPositionManagerApproval(
             msg.sender,

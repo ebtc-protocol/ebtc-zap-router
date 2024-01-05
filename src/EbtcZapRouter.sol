@@ -56,7 +56,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _stEthBalance,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _transferInitialStETHFromCaller(_stEthBalance);
 
@@ -85,7 +85,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _ethBalance,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external payable returns (bytes32 cdpId) {
         uint256 _collVal = _convertRawEthToStETH(_ethBalance);
 
@@ -112,7 +112,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _wethBalance,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _convertWrappedEthToStETH(_wethBalance);
 
@@ -139,7 +139,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _wstEthBalance,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _convertWstEthToStETH(_wstEthBalance);
 
@@ -159,7 +159,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
     /// @dev Note plain collateral(stETH) is returned no matter whatever asset is zapped in
     /// @param _cdpId The CdpId on which this operation is operated
     /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
-    function closeCdp(bytes32 _cdpId, PositionManagerPermit memory _positionManagerPermit) external {
+    function closeCdp(bytes32 _cdpId, PositionManagerPermit calldata _positionManagerPermit) external {
         _closeCdpWithPermit(_cdpId, false, _positionManagerPermit);
     }
 
@@ -169,7 +169,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
     /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
     function closeCdpForWstETH(
         bytes32 _cdpId,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external {
         _closeCdpWithPermit(_cdpId, true, _positionManagerPermit);
     }
@@ -193,7 +193,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _ethBalanceIncrease,
         bool _useWstETHForDecrease,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external payable {
         uint256 _collBalanceIncrease = _ethBalanceIncrease;
         if (_ethBalanceIncrease > 0) {
@@ -240,7 +240,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _wethBalanceIncrease,
         bool _useWstETHForDecrease,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external {
         uint256 _collBalanceIncrease = _wethBalanceIncrease;
         if (_wethBalanceIncrease > 0) {
@@ -287,7 +287,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _wstEthBalanceIncrease,
         bool _useWstETHForDecrease,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external {
         uint256 _collBalanceIncrease = _wstEthBalanceIncrease;
 
@@ -336,7 +336,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _collBalanceIncrease,
         bool _useWstETHForDecrease,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external {
         if (_collBalanceIncrease > 0) {
             emit ZapOperationEthVariant(
@@ -372,7 +372,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _ethBalanceIncrease,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external payable {
         uint256 _stEthToAdd = _convertRawEthToStETH(_ethBalanceIncrease);
 
@@ -403,7 +403,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _stEthBalance,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) internal returns (bytes32 cdpId) {
         // Check token balances of Zap before operation
         require(
@@ -438,7 +438,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
     function _closeCdpWithPermit(
         bytes32 _cdpId,
         bool _useWstETH,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) internal {
         require(msg.sender == _getOwnerAddress(_cdpId), "EbtcZapRouter: not owner for close!");
 
@@ -506,7 +506,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _collBalanceIncrease,
         bool _useWstETH,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) internal {
         require(msg.sender == _getOwnerAddress(_cdpId), "EbtcZapRouter: not owner for adjust!");
         require(
