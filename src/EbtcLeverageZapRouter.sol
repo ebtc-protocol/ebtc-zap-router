@@ -22,6 +22,34 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         IEbtcLeverageZapRouter.DeploymentParams memory params
     ) LeverageZapRouterBase(params) {}
 
+    function openCdpWithEth(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _ethBalance,
+        PositionManagerPermit memory _positionManagerPermit,
+        bytes calldata _exchangeData
+    ) external payable returns (bytes32 cdpId) {
+        uint256 _collVal = _convertRawEthToStETH(_ethBalance);
+    
+        return
+            _openCdp(_debt, _upperHint, _lowerHint, _collVal, _positionManagerPermit, _exchangeData);
+    }
+
+    function openCdpWithWstEth(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _wstEthBalance,
+        PositionManagerPermit memory _positionManagerPermit,
+        bytes calldata _exchangeData
+    ) external returns (bytes32 cdpId) {
+        uint256 _collVal = _convertWstEthToStETH(_wstEthBalance);
+
+        return
+            _openCdp(_debt, _upperHint, _lowerHint, _collVal, _positionManagerPermit, _exchangeData);                    
+    }
+
     function openCdpWithWrappedEth(
         uint256 _debt,
         bytes32 _upperHint,
@@ -94,7 +122,6 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         });
 
         // TODO: emit event
-        // TODO: return cdpId, otherwise useful data? check with UI devs
     }
 
     function closeCdp(

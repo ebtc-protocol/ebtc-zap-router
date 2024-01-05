@@ -19,8 +19,9 @@ import {IEbtcZapRouter} from "../../src/interface/IEbtcZapRouter.sol";
 import {IEbtcLeverageZapRouter} from "../../src/interface/IEbtcLeverageZapRouter.sol";
 import {IEbtcZapRouterBase} from "../../src/interface/IEbtcZapRouterBase.sol";
 import {WstETH} from "../../src/testContracts/WstETH.sol";
+import {TargetFunctionsBase} from "./TargetFunctionsBase.sol";
 
-abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
+abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
     function setUp() public virtual {
         super._setUp();
         mockDex = new Mock1Inch(address(eBTCToken), address(collateral));
@@ -35,124 +36,6 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             ICdpManager(address(cdpManager)),
             defaultGovernance
         );
-        leverageZapRouter = new EbtcLeverageZapRouter(IEbtcLeverageZapRouter.DeploymentParams({
-            borrowerOperations: address(borrowerOperations),
-            activePool: address(activePool),
-            cdpManager: address(cdpManager),
-            ebtc: address(eBTCToken),
-            stEth: address(collateral),
-            weth: address(testWeth),
-            wstEth: address(testWstEth),
-            sortedCdps: address(sortedCdps),
-            priceFeed: address(priceFeedMock),
-            dex: address(mockDex)
-        }));
-    }
-
-    function _dealETH(ZapRouterActor actor) private {
-        (bool success, ) = address(actor).call{value: INITIAL_ETH_BALANCE}("");
-        assert(success);
-    }
-
-    function _dealWETH(ZapRouterActor actor) private {
-        _dealETH(actor);
-        (bool success, ) = actor.proxy(
-            address(testWeth),
-            abi.encodeWithSelector(WETH9.deposit.selector, ""),
-            INITIAL_ETH_BALANCE,
-            false
-        );
-        assert(success);
-        (success, ) = actor.proxy(
-            address(testWeth),
-            abi.encodeWithSelector(
-                WETH9.transfer.selector,
-                actor.sender(),
-                INITIAL_ETH_BALANCE
-            ),
-            false
-        );
-        assert(success);
-    }
-
-    function _dealCollateral(ZapRouterActor actor) private {
-        _dealETH(actor);
-        (bool success, ) = actor.proxy(
-            address(collateral),
-            abi.encodeWithSelector(CollateralTokenTester.deposit.selector, ""),
-            INITIAL_COLL_BALANCE,
-            false
-        );
-        assert(success);
-    }
-
-    function _dealWrappedCollateral(ZapRouterActor actor) private {
-        _dealETH(actor);
-        (bool success, ) = actor.proxy(
-            address(collateral),
-            abi.encodeWithSelector(CollateralTokenTester.deposit.selector, ""),
-            INITIAL_COLL_BALANCE,
-            false
-        );
-        assert(success);
-        (success, ) = actor.proxy(
-            address(collateral),
-            abi.encodeWithSelector(
-                CollateralTokenTester.approve.selector,
-                address(testWstEth),
-                INITIAL_COLL_BALANCE
-            ),
-            false
-        );
-        assert(success);
-        uint256 amountBefore = IERC20(testWstEth).balanceOf(address(actor));
-        (success, ) = actor.proxy(
-            testWstEth,
-            abi.encodeWithSelector(WstETH.wrap.selector, INITIAL_COLL_BALANCE),
-            false
-        );
-        assert(success);
-        uint256 amountAfter = IERC20(testWstEth).balanceOf(address(actor));
-        (success, ) = actor.proxy(
-            testWstEth,
-            abi.encodeWithSelector(
-                IERC20.transfer.selector,
-                actor.sender(),
-                amountAfter - amountBefore
-            ),
-            false
-        );
-        assert(success);
-    }
-
-    function setUpActors() internal {
-        bool success;
-        address[] memory tokens = new address[](4);
-        tokens[0] = address(eBTCToken);
-        tokens[1] = address(collateral);
-        tokens[2] = testWeth;
-        tokens[3] = testWstEth;
-        address[] memory addresses = new address[](3);
-        addresses[0] = hevm.addr(USER1_PK);
-        addresses[1] = hevm.addr(USER2_PK);
-        addresses[2] = hevm.addr(USER3_PK);
-        zapActorKeys[addresses[0]] = USER1_PK;
-        zapActorKeys[addresses[1]] = USER2_PK;
-        zapActorKeys[addresses[2]] = USER3_PK;
-        for (uint i = 0; i < NUMBER_OF_ACTORS; i++) {
-            zapActors[addresses[i]] = new ZapRouterActor(
-                tokens,
-                address(zapRouter),
-                addresses[i]
-            );
-        }
-    }
-
-    modifier setup() virtual {
-        zapSender = msg.sender;
-        zapActor = zapActors[msg.sender];
-        zapActorKey = zapActorKeys[msg.sender];
-        _;
     }
 
     function _checkApproval(address _user) private {
@@ -618,9 +501,5 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         t(success, "Call shouldn't fail");
 
         _checkApproval(address(zapSender));
-    }
-
-    function openLeveragedCdpWithEth() public setup {
-        
     }
 }

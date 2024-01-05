@@ -24,7 +24,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
     constructor(
         IEbtcLeverageZapRouter.DeploymentParams memory params
     )
-        ZapRouterBase(IERC20(params.weth), IStETH(params.stEth))
+        ZapRouterBase(IERC20(params.weth), IERC20(params.wstEth), IStETH(params.stEth))
         LeverageMacroBase(
             params.borrowerOperations,
             params.activePool,

@@ -6,20 +6,26 @@ import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 contract ZapRouterActor {
     address[] public tokens;
     address public zapRouter;
+    address public leverageZapRouter;
     address public sender;
 
     constructor(
         address[] memory _tokens,
         address _zapRouter,
+        address _leverageZapRouter,
         address _sender
     ) payable {
         tokens = _tokens;
         zapRouter = _zapRouter;
+        leverageZapRouter = _leverageZapRouter;
         sender = _sender;
         for (uint256 i = 0; i < tokens.length; i++) {
             IERC20(tokens[i]).approve(zapRouter, type(uint256).max);
             hevm.prank(sender);
             IERC20(tokens[i]).approve(zapRouter, type(uint256).max);
+            IERC20(tokens[i]).approve(leverageZapRouter, type(uint256).max);
+            hevm.prank(sender);
+            IERC20(tokens[i]).approve(leverageZapRouter, type(uint256).max);
         }
     }
 

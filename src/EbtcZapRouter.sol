@@ -19,7 +19,6 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
     address public constant NATIVE_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     IERC20 public immutable ebtc;
-    IERC20 public immutable wstEth;
     IBorrowerOperations public immutable borrowerOperations;
     ICdpManager public immutable cdpManager;
     address public immutable owner;
@@ -32,8 +31,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         IBorrowerOperations _borrowerOperations,
         ICdpManager _cdpManager,
         address _owner
-    ) ZapRouterBase(_wEth, _stEth) {
-        wstEth = _wstEth;
+    ) ZapRouterBase(_wstEth, _wEth, _stEth) {
         ebtc = _ebtc;
         borrowerOperations = _borrowerOperations;
         cdpManager = _cdpManager;
@@ -566,24 +564,6 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         stEth.transferFrom(msg.sender, address(this), _initialStETH);
         uint256 _deposit = stEth.balanceOf(address(this)) - _balBefore;
         return _deposit;
-    }
-
-    function _convertRawEthToStETH(uint256 _initialETH) internal returns (uint256) {
-        require(msg.value == _initialETH, "EbtcZapRouter: Incorrect ETH amount");
-        return _depositRawEthIntoLido(_initialETH);
-    }
-
-    function _convertWstEthToStETH(uint256 _initialWstETH) internal returns (uint256) {
-        require(
-            wstEth.transferFrom(msg.sender, address(this), _initialWstETH),
-            "EbtcZapRouter: transfer wstETH failure!"
-        );
-
-        uint256 _stETHBalBefore = stEth.balanceOf(address(this));
-        IWstETH(address(wstEth)).unwrap(_initialWstETH);
-        uint256 _stETHReiceived = stEth.balanceOf(address(this)) - _stETHBalBefore;
-
-        return _stETHReiceived;
     }
 
     function _getOwnerAddress(bytes32 cdpId) internal pure returns (address) {
