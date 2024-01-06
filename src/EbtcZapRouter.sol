@@ -464,39 +464,6 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         _transferStEthToCaller(_cdpId, EthVariantZapOperationType.CloseCdp, _useWstETH, _stETHDiff);
     }
 
-    function _transferStEthToCaller(
-        bytes32 _cdpId,
-        EthVariantZapOperationType _operationType,
-        bool _useWstETH,
-        uint256 _stEthVal
-    ) internal {
-        if (_useWstETH) {
-            // return wrapped version(WstETH)
-            uint256 _wstETHVal = IWstETH(address(wstEth)).wrap(_stEthVal);
-            emit ZapOperationEthVariant(
-                _cdpId,
-                _operationType,
-                false,
-                address(wstEth),
-                _wstETHVal,
-                _stEthVal
-            );
-
-            wstEth.transfer(msg.sender, _wstETHVal);
-        } else {
-            // return original collateral(stETH)
-            emit ZapOperationEthVariant(
-                _cdpId,
-                _operationType,
-                false,
-                address(stEth),
-                _stEthVal,
-                _stEthVal
-            );
-            stEth.transfer(msg.sender, _stEthVal);
-        }
-    }
-
     function _adjustCdpWithPermit(
         bytes32 _cdpId,
         uint256 _collBalanceDecrease,

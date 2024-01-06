@@ -9,6 +9,7 @@ import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperation
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
 import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
+import {IEbtcLeverageZapRouter} from "../src/interface/IEbtcLeverageZapRouter.sol";
 import {IEbtcZapRouterBase} from "../src/interface/IEbtcZapRouterBase.sol";
 
 interface ICdpCdps {
@@ -102,7 +103,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                     mockDex.swap.selector,
                     address(eBTCToken),
                     address(collateral),
-                    1e18 // Debt amount
+                    _debt // Debt amount
                 )
             ),
             expectedCdpId,
@@ -180,5 +181,49 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         );
 
         vm.stopPrank();
+    }
+
+    function test_adjustCdp_debtIncrease_stEth() public {
+        seedActivePool();
+
+        (address user, bytes32 cdpId) = createLeveragedPosition();
+
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
+
+        (uint256 debtBefore, uint256 collBefore) = cdpManager.getSyncedDebtAndCollShares(cdpId);
+
+        uint256 debtChange = 0.1e18;
+
+        vm.startPrank(user);
+
+        leverageZapRouter.adjustCdp(
+            cdpId, 
+            IEbtcLeverageZapRouter.AdjustCdpParams({
+                _flashLoanAmount: _debtToCollateral(debtChange),
+                _debtChange: debtChange,
+                _isDebtIncrease: true,
+                _upperHint: bytes32(0),
+                _lowerHint: bytes32(0),
+                _stEthBalanceDecrease: 0,
+                _stEthBalanceIncrease: 0,
+                _useWstETHForDecrease: false
+            }), 
+            pmPermit, 
+            abi.encodeWithSelector(
+                mockDex.swap.selector,
+                address(eBTCToken),
+                address(collateral),
+                debtChange // Debt amount
+            )
+        );
+
+        vm.stopPrank();
+
+        (uint256 debtAfter, uint256 collAfter) = cdpManager.getSyncedDebtAndCollShares(cdpId);
+
+        console2.log("debtBefore", debtBefore);
+        console2.log("debtAfter", debtAfter);
+        console2.log("collBefore", collBefore);
+        console2.log("collAfter", collAfter);
     }
 }

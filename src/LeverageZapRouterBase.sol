@@ -67,6 +67,44 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
         return (_debt * PRECISION) / price;
     }
 
+    function _adjustCdpOperation(
+        bytes32 _cdpId, 
+        FlashLoanType _flType,
+        uint256 _flAmount,
+        AdjustCdpOperation memory _cdp,
+        uint256 newDebt,
+        uint256 newColl,
+        bytes calldata _exchangeData
+    ) internal {
+        LeverageMacroOperation memory op;
+
+        op.tokenToTransferIn = address(stETH);
+        op.amountToTransferIn = _cdp._stEthBalanceIncrease;
+        op.operationType = OperationType.AdjustCdpOperation;
+        op.OperationData = abi.encode(_cdp);
+
+        if (_cdp._isDebtIncrease) {
+            op.swapsAfter =_getSwapOperations(address(ebtcToken), _cdp._EBTCChange, _exchangeData);
+        }
+
+        _doOperation(
+            _flType,
+            _flAmount,
+            op,
+            PostOperationCheck.cdpStats,
+            _getPostCheckParams(
+                _cdpId,
+                newDebt,
+                newColl,
+                ICdpManagerData.Status.active
+            ),
+            _cdpId
+        );
+
+        // TODO: only sweep diff
+        _sweep();
+    }
+
     function _openCdpOperation(
         bytes32 _cdpId,
         OpenCdpForOperation memory _cdp,
@@ -103,7 +141,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
     function _closeCdpOperation(
         bytes32 _cdpId,
         uint256 _debt,
-      //  uint256 _flashFee,
         uint256 _stEthAmount,
         bytes calldata _exchangeData
     ) internal {
@@ -162,10 +199,10 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
     ) internal view returns (PostCheckParams memory) {
         return
             PostCheckParams({
-                expectedDebt: CheckValueAndType({value: _debt, operator: Operator.lte}),
+                expectedDebt: CheckValueAndType({value: _debt, operator: Operator.equal}),
                 expectedCollateral: CheckValueAndType({
                     value: _totalCollateral,
-                    operator: Operator.gte
+                    operator: Operator.skip
                 }),
                 cdpId: _cdpId,
                 expectedStatus: _status

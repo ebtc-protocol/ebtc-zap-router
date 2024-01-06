@@ -189,6 +189,40 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         PositionManagerPermit calldata _positionManagerPermit,
         bytes calldata _exchangeData
     ) external {
+        // TODO: make sure one of the parameters is non-zero
+        (uint256 debt, uint256 coll) = ICdpManager(address(cdpManager)).getSyncedDebtAndCollShares(_cdpId);
 
+        _permitPositionManagerApproval(_positionManagerPermit);
+
+        uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
+        _adjustCdpOperation({
+            _cdpId: _cdpId,
+            _flType: params._isDebtIncrease ? FlashLoanType.stETH : FlashLoanType.eBTC,
+            _flAmount: params._flashLoanAmount,
+            _cdp: AdjustCdpOperation({
+                _cdpId: _cdpId,
+                _stEthBalanceDecrease: params._stEthBalanceDecrease,
+                _EBTCChange: params._debtChange,
+                _isDebtIncrease: params._isDebtIncrease,
+                _upperHint: params._upperHint,
+                _lowerHint: params._lowerHint,
+                _stEthBalanceIncrease: params._stEthBalanceIncrease
+            }),
+            newDebt: params._isDebtIncrease
+                ? debt + params._debtChange
+                : debt - params._debtChange,
+            newColl: 0,
+            _exchangeData: _exchangeData
+        });
+        uint256 _zapStEthBalanceDiff = stEth.balanceOf(address(this)) - _zapStEthBalanceBefore;
+
+        if (_zapStEthBalanceDiff > 0) {
+            _transferStEthToCaller(
+                _cdpId,
+                EthVariantZapOperationType.AdjustCdp,
+                params._useWstETHForDecrease,
+                _zapStEthBalanceDiff
+            );
+        }
     }
 }

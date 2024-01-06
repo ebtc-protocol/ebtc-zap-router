@@ -18,14 +18,13 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
     }
 
     struct AdjustCdpParams {
-        uint256 _ebtcLoanAmount;
+        uint256 _flashLoanAmount;
         uint256 _debtChange;
         bool _isDebtIncrease;
         bytes32 _upperHint;
         bytes32 _lowerHint;
-        uint256 _stEthLoanAmount;
-        uint256 _collBalanceDecrease;
-        uint256 _collBalanceIncrease;
+        uint256 _stEthBalanceDecrease;
+        uint256 _stEthBalanceIncrease;
         bool _useWstETHForDecrease;
     }
 }

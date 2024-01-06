@@ -6,12 +6,12 @@ import {IPriceFeed} from "@ebtc/contracts/Interfaces/IPriceFeed.sol";
 import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {LeverageMacroBase} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
-import {IEbtcZapRouter} from "./interface/IEbtcZapRouter.sol";
+import {IEbtcZapRouterBase} from "./interface/IEbtcZapRouterBase.sol";
 import {IWrappedETH} from "./interface/IWrappedETH.sol";
 import {IStETH} from "./interface/IStETH.sol";
 import {IWstETH} from "./interface/IWstETH.sol";
 
-abstract contract ZapRouterBase {
+abstract contract ZapRouterBase is IEbtcZapRouterBase {
     IERC20 public immutable wstEth;
     IStETH public immutable stEth;
     IERC20 public immutable wrappedEth;
@@ -58,5 +58,38 @@ abstract contract ZapRouterBase {
         uint256 _stETHReiceived = stEth.balanceOf(address(this)) - _stETHBalBefore;
 
         return _stETHReiceived;
+    }
+
+    function _transferStEthToCaller(
+        bytes32 _cdpId,
+        EthVariantZapOperationType _operationType,
+        bool _useWstETH,
+        uint256 _stEthVal
+    ) internal {
+        if (_useWstETH) {
+            // return wrapped version(WstETH)
+            uint256 _wstETHVal = IWstETH(address(wstEth)).wrap(_stEthVal);
+            emit ZapOperationEthVariant(
+                _cdpId,
+                _operationType,
+                false,
+                address(wstEth),
+                _wstETHVal,
+                _stEthVal
+            );
+
+            wstEth.transfer(msg.sender, _wstETHVal);
+        } else {
+            // return original collateral(stETH)
+            emit ZapOperationEthVariant(
+                _cdpId,
+                _operationType,
+                false,
+                address(stEth),
+                _stEthVal,
+                _stEthVal
+            );
+            stEth.transfer(msg.sender, _stEthVal);
+        }
     }
 }
