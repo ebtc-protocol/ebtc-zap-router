@@ -7,21 +7,18 @@ import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperation
 import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {SafeERC20} from "@ebtc/contracts/Dependencies/SafeERC20.sol";
+import {ZapRouterBase} from "./ZapRouterBase.sol";
 import {IStETH} from "./interface/IStETH.sol";
 import {IWrappedETH} from "./interface/IWrappedETH.sol";
 import {IEbtcZapRouter} from "./interface/IEbtcZapRouter.sol";
 import {IWstETH} from "./interface/IWstETH.sol";
 
-contract EbtcZapRouter is IEbtcZapRouter {
+contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
     using SafeERC20 for IERC20;
 
-    address public constant NATIVE_ETH_ADDRESS =
-        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address public constant NATIVE_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    IStETH public immutable stEth;
     IERC20 public immutable ebtc;
-    IERC20 public immutable wrappedEth;
-    IERC20 public immutable wstEth;
     IBorrowerOperations public immutable borrowerOperations;
     ICdpManager public immutable cdpManager;
     address public immutable owner;
@@ -34,10 +31,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         IBorrowerOperations _borrowerOperations,
         ICdpManager _cdpManager,
         address _owner
-    ) {
-        wstEth = _wstEth;
-        wrappedEth = _wEth;
-        stEth = _stEth;
+    ) ZapRouterBase(_wstEth, _wEth, _stEth) {
         ebtc = _ebtc;
         borrowerOperations = _borrowerOperations;
         cdpManager = _cdpManager;
@@ -45,8 +39,6 @@ contract EbtcZapRouter is IEbtcZapRouter {
 
         // Infinite Approvals @TODO: do these stay at max for each token?
         stEth.approve(address(borrowerOperations), type(uint256).max);
-        wrappedEth.approve(address(wrappedEth), type(uint256).max);
-        wstEth.approve(address(wstEth), type(uint256).max);
         stEth.approve(address(wstEth), type(uint256).max);
     }
 
@@ -64,24 +56,22 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _stEthBalance,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _transferInitialStETHFromCaller(_stEthBalance);
 
-        require(
-            _stEthBalance == _collVal,
-            "EbtcZapRouter: stETH conversion error"
-        );
+        require(_stEthBalance == _collVal, "EbtcZapRouter: stETH conversion error");
 
-        cdpId = _openCdpWithPermit(
-            _debt,
-            _upperHint,
-            _lowerHint,
-            _collVal,
-            _positionManagerPermit
-        );
+        cdpId = _openCdpWithPermit(_debt, _upperHint, _lowerHint, _collVal, _positionManagerPermit);
 
-        emit ZapOperationEthVariant(cdpId, EthVariantZapOperationType.OpenCdp, true, address(stEth), _stEthBalance, _collVal);
+        emit ZapOperationEthVariant(
+            cdpId,
+            EthVariantZapOperationType.OpenCdp,
+            true,
+            address(stEth),
+            _stEthBalance,
+            _collVal
+        );
     }
 
     /// @dev Open a CDP with raw native Ether
@@ -95,19 +85,20 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _ethBalance,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external payable returns (bytes32 cdpId) {
         uint256 _collVal = _convertRawEthToStETH(_ethBalance);
 
-        cdpId = _openCdpWithPermit(
-            _debt,
-            _upperHint,
-            _lowerHint,
-            _collVal,
-            _positionManagerPermit
-        );
+        cdpId = _openCdpWithPermit(_debt, _upperHint, _lowerHint, _collVal, _positionManagerPermit);
 
-        emit ZapOperationEthVariant(cdpId, EthVariantZapOperationType.OpenCdp, true, NATIVE_ETH_ADDRESS, _ethBalance, _collVal);
+        emit ZapOperationEthVariant(
+            cdpId,
+            EthVariantZapOperationType.OpenCdp,
+            true,
+            NATIVE_ETH_ADDRESS,
+            _ethBalance,
+            _collVal
+        );
     }
 
     /// @dev Open a CDP with Wrapped Ether
@@ -121,19 +112,20 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _wethBalance,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _convertWrappedEthToStETH(_wethBalance);
 
-        cdpId = _openCdpWithPermit(
-            _debt,
-            _upperHint,
-            _lowerHint,
-            _collVal,
-            _positionManagerPermit
+        cdpId = _openCdpWithPermit(_debt, _upperHint, _lowerHint, _collVal, _positionManagerPermit);
+
+        emit ZapOperationEthVariant(
+            cdpId,
+            EthVariantZapOperationType.OpenCdp,
+            true,
+            address(wrappedEth),
+            _wethBalance,
+            _collVal
         );
-        
-        emit ZapOperationEthVariant(cdpId, EthVariantZapOperationType.OpenCdp, true, address(wrappedEth), _wethBalance, _collVal);
     }
 
     /// @dev Open a CDP with Wrapped StETH
@@ -147,29 +139,27 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _wstEthBalance,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _convertWstEthToStETH(_wstEthBalance);
 
-        cdpId = _openCdpWithPermit(
-            _debt,
-            _upperHint,
-            _lowerHint,
-            _collVal,
-            _positionManagerPermit
-        );
+        cdpId = _openCdpWithPermit(_debt, _upperHint, _lowerHint, _collVal, _positionManagerPermit);
 
-        emit ZapOperationEthVariant(cdpId, EthVariantZapOperationType.OpenCdp, true, address(wstEth), _wstEthBalance, _collVal);
+        emit ZapOperationEthVariant(
+            cdpId,
+            EthVariantZapOperationType.OpenCdp,
+            true,
+            address(wstEth),
+            _wstEthBalance,
+            _collVal
+        );
     }
 
     /// @dev Close a CDP with original collateral(stETH) returned to CDP owner
     /// @dev Note plain collateral(stETH) is returned no matter whatever asset is zapped in
     /// @param _cdpId The CdpId on which this operation is operated
     /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
-    function closeCdp(
-        bytes32 _cdpId,
-        PositionManagerPermit memory _positionManagerPermit
-    ) external {
+    function closeCdp(bytes32 _cdpId, PositionManagerPermit calldata _positionManagerPermit) external {
         _closeCdpWithPermit(_cdpId, false, _positionManagerPermit);
     }
 
@@ -179,7 +169,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
     /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
     function closeCdpForWstETH(
         bytes32 _cdpId,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external {
         _closeCdpWithPermit(_cdpId, true, _positionManagerPermit);
     }
@@ -203,12 +193,19 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _ethBalanceIncrease,
         bool _useWstETHForDecrease,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external payable {
         uint256 _collBalanceIncrease = _ethBalanceIncrease;
         if (_ethBalanceIncrease > 0) {
             _collBalanceIncrease = _convertRawEthToStETH(_ethBalanceIncrease);
-            emit ZapOperationEthVariant(_cdpId, EthVariantZapOperationType.AdjustCdp, true, NATIVE_ETH_ADDRESS, _ethBalanceIncrease, _collBalanceIncrease);
+            emit ZapOperationEthVariant(
+                _cdpId,
+                EthVariantZapOperationType.AdjustCdp,
+                true,
+                NATIVE_ETH_ADDRESS,
+                _ethBalanceIncrease,
+                _collBalanceIncrease
+            );
         }
 
         _adjustCdpWithPermit(
@@ -243,14 +240,19 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _wethBalanceIncrease,
         bool _useWstETHForDecrease,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external {
         uint256 _collBalanceIncrease = _wethBalanceIncrease;
         if (_wethBalanceIncrease > 0) {
-            _collBalanceIncrease = _convertWrappedEthToStETH(
-                _wethBalanceIncrease
+            _collBalanceIncrease = _convertWrappedEthToStETH(_wethBalanceIncrease);
+            emit ZapOperationEthVariant(
+                _cdpId,
+                EthVariantZapOperationType.AdjustCdp,
+                true,
+                address(wrappedEth),
+                _wethBalanceIncrease,
+                _collBalanceIncrease
             );
-            emit ZapOperationEthVariant(_cdpId, EthVariantZapOperationType.AdjustCdp, true, address(wrappedEth), _wethBalanceIncrease, _collBalanceIncrease);
         }
 
         _adjustCdpWithPermit(
@@ -285,17 +287,22 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _wstEthBalanceIncrease,
         bool _useWstETHForDecrease,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external {
         uint256 _collBalanceIncrease = _wstEthBalanceIncrease;
 
         // wstETH In
         if (_wstEthBalanceIncrease > 0) {
-            _collBalanceIncrease = _convertWstEthToStETH(
-                _wstEthBalanceIncrease
+            _collBalanceIncrease = _convertWstEthToStETH(_wstEthBalanceIncrease);
+            emit ZapOperationEthVariant(
+                _cdpId,
+                EthVariantZapOperationType.AdjustCdp,
+                false,
+                address(wstEth),
+                _wstEthBalanceIncrease,
+                _collBalanceIncrease
             );
-            emit ZapOperationEthVariant(_cdpId, EthVariantZapOperationType.AdjustCdp, false, address(wstEth), _wstEthBalanceIncrease, _collBalanceIncrease);
-        } 
+        }
 
         _adjustCdpWithPermit(
             _cdpId,
@@ -329,10 +336,17 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _collBalanceIncrease,
         bool _useWstETHForDecrease,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external {
         if (_collBalanceIncrease > 0) {
-         emit ZapOperationEthVariant(_cdpId, EthVariantZapOperationType.AdjustCdp, false, address(stEth), _collBalanceIncrease, _collBalanceIncrease);
+            emit ZapOperationEthVariant(
+                _cdpId,
+                EthVariantZapOperationType.AdjustCdp,
+                false,
+                address(stEth),
+                _collBalanceIncrease,
+                _collBalanceIncrease
+            );
         }
         _adjustCdpWithPermit(
             _cdpId,
@@ -358,7 +372,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _ethBalanceIncrease,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) external payable {
         uint256 _stEthToAdd = _convertRawEthToStETH(_ethBalanceIncrease);
 
@@ -389,7 +403,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _stEthBalance,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) internal returns (bytes32 cdpId) {
         // Check token balances of Zap before operation
         require(
@@ -424,17 +438,12 @@ contract EbtcZapRouter is IEbtcZapRouter {
     function _closeCdpWithPermit(
         bytes32 _cdpId,
         bool _useWstETH,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) internal {
-        require(
-            msg.sender == _getOwnerAddress(_cdpId),
-            "EbtcZapRouter: not owner for close!"
-        );
+        require(msg.sender == _getOwnerAddress(_cdpId), "EbtcZapRouter: not owner for close!");
 
         // for debt repayment
-        uint256 _debt = ICdpManagerData(address(cdpManager)).getSyncedCdpDebt(
-            _cdpId
-        );
+        uint256 _debt = ICdpManagerData(address(cdpManager)).getSyncedCdpDebt(_cdpId);
         ebtc.transferFrom(msg.sender, address(this), _debt);
 
         borrowerOperations.permitPositionManagerApproval(
@@ -455,25 +464,6 @@ contract EbtcZapRouter is IEbtcZapRouter {
         _transferStEthToCaller(_cdpId, EthVariantZapOperationType.CloseCdp, _useWstETH, _stETHDiff);
     }
 
-    function _transferStEthToCaller(
-        bytes32 _cdpId,
-        EthVariantZapOperationType _operationType,
-        bool _useWstETH,
-        uint256 _stEthVal
-    ) internal {
-        if (_useWstETH) {
-            // return wrapped version(WstETH)
-            uint256 _wstETHVal = IWstETH(address(wstEth)).wrap(_stEthVal);
-            emit ZapOperationEthVariant(_cdpId, _operationType, false, address(wstEth), _wstETHVal, _stEthVal);
-
-            wstEth.transfer(msg.sender, _wstETHVal);
-        } else {
-            // return original collateral(stETH)
-            emit ZapOperationEthVariant(_cdpId, _operationType, false, address(stEth), _stEthVal, _stEthVal);
-            stEth.transfer(msg.sender, _stEthVal);
-        }
-    }
-
     function _adjustCdpWithPermit(
         bytes32 _cdpId,
         uint256 _collBalanceDecrease,
@@ -483,12 +473,9 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _collBalanceIncrease,
         bool _useWstETH,
-        PositionManagerPermit memory _positionManagerPermit
+        PositionManagerPermit calldata _positionManagerPermit
     ) internal {
-        require(
-            msg.sender == _getOwnerAddress(_cdpId),
-            "EbtcZapRouter: not owner for adjust!"
-        );
+        require(msg.sender == _getOwnerAddress(_cdpId), "EbtcZapRouter: not owner for adjust!");
         require(
             (_collBalanceDecrease > 0 && _collBalanceIncrease == 0) ||
                 (_collBalanceIncrease > 0 && _collBalanceDecrease == 0),
@@ -538,65 +525,12 @@ contract EbtcZapRouter is IEbtcZapRouter {
         }
     }
 
-    function _transferInitialStETHFromCaller(
-        uint256 _initialStETH
-    ) internal returns (uint256) {
+    function _transferInitialStETHFromCaller(uint256 _initialStETH) internal returns (uint256) {
         // check before-after balances for 1-wei corner case
         uint256 _balBefore = stEth.balanceOf(address(this));
         stEth.transferFrom(msg.sender, address(this), _initialStETH);
         uint256 _deposit = stEth.balanceOf(address(this)) - _balBefore;
         return _deposit;
-    }
-
-    function _convertRawEthToStETH(
-        uint256 _initialETH
-    ) internal returns (uint256) {
-        require(
-            msg.value == _initialETH,
-            "EbtcZapRouter: Incorrect ETH amount"
-        );
-        return _depositRawEthIntoLido(_initialETH);
-    }
-
-    function _depositRawEthIntoLido(
-        uint256 _initialETH
-    ) internal returns (uint256) {
-        // check before-after balances for 1-wei corner case
-        uint256 _balBefore = stEth.balanceOf(address(this));
-        // TODO call submit() with a referral?
-        payable(address(stEth)).call{value: _initialETH}("");
-        uint256 _deposit = stEth.balanceOf(address(this)) - _balBefore;
-        return _deposit;
-    }
-
-    function _convertWrappedEthToStETH(
-        uint256 _initialWETH
-    ) internal returns (uint256) {
-        uint256 _wETHBalBefore = wrappedEth.balanceOf(address(this));
-        wrappedEth.transferFrom(msg.sender, address(this), _initialWETH);
-        uint256 _wETHReiceived = wrappedEth.balanceOf(address(this)) -
-            _wETHBalBefore;
-
-        uint256 _rawETHBalBefore = address(this).balance;
-        IWrappedETH(address(wrappedEth)).withdraw(_wETHReiceived);
-        uint256 _rawETHConverted = address(this).balance - _rawETHBalBefore;
-        return _depositRawEthIntoLido(_rawETHConverted);
-    }
-
-    function _convertWstEthToStETH(
-        uint256 _initialWstETH
-    ) internal returns (uint256) {
-        require(
-            wstEth.transferFrom(msg.sender, address(this), _initialWstETH),
-            "EbtcZapRouter: transfer wstETH failure!"
-        );
-
-        uint256 _stETHBalBefore = stEth.balanceOf(address(this));
-        IWstETH(address(wstEth)).unwrap(_initialWstETH);
-        uint256 _stETHReiceived = stEth.balanceOf(address(this)) -
-            _stETHBalBefore;
-
-        return _stETHReiceived;
     }
 
     function _getOwnerAddress(bytes32 cdpId) internal pure returns (address) {

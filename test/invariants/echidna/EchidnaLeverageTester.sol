@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {TargetFunctions} from "../TargetFunctions.sol";
+import {TargetFunctionsWithLeverage} from "../TargetFunctionsWithLeverage.sol";
 
-contract EchidnaTester is TargetFunctions {
+contract EchidnaTester is TargetFunctionsWithLeverage {
     constructor() payable {
         super.setUp();
         super.setUpActors();
