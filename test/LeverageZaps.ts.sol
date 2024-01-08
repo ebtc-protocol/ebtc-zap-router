@@ -190,11 +190,14 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
 
+        vm.startPrank(user);
+
         (uint256 debtBefore, uint256 collBefore) = cdpManager.getSyncedDebtAndCollShares(cdpId);
+        uint256 icrBefore = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
 
         uint256 debtChange = 0.1e18;
-
-        vm.startPrank(user);
+        uint256 collValue = _debtToCollateral(debtChange) * 9995 / 10000;
+        uint256 stBalBefore = collateral.balanceOf(user);
 
         leverageZapRouter.adjustCdp(
             cdpId, 
@@ -204,8 +207,9 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 _isDebtIncrease: true,
                 _upperHint: bytes32(0),
                 _lowerHint: bytes32(0),
-                _stEthBalanceDecrease: 0,
-                _stEthBalanceIncrease: 0,
+                _stEthBalanceChange: collValue,
+                _isStEthBalanceIncrease: true,
+                _stEthMarginIncrease: 0,
                 _useWstETHForDecrease: false
             }), 
             pmPermit, 
@@ -217,14 +221,21 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             )
         );
 
-        vm.stopPrank();
-
         (uint256 debtAfter, uint256 collAfter) = cdpManager.getSyncedDebtAndCollShares(cdpId);
+        uint256 icrAfter = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
+
+        uint256 stBalAfter = collateral.balanceOf(user);
 
         console2.log("debtBefore", debtBefore);
         console2.log("debtAfter", debtAfter);
         console2.log("collBefore", collBefore);
         console2.log("collAfter", collAfter);
+        console2.log("icrBefore", icrBefore);
+        console2.log("icrAfter", icrAfter);
+        console2.log("stBalBefore", stBalBefore);
+        console2.log("stBalAfter", stBalAfter);
+
+        vm.stopPrank();
     }
 
     function test_adjustCdp_debtDecrease_stEth() public {
@@ -234,13 +245,14 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
 
-        (uint256 debtBefore, uint256 collBefore) = cdpManager.getSyncedDebtAndCollShares(cdpId);
-
-        uint256 debtChange = 0.1e18;
-
         vm.startPrank(user);
 
-        uint256 collValue = _debtToCollateral(debtChange) * 1005 / 1000;
+        (uint256 debtBefore, uint256 collBefore) = cdpManager.getSyncedDebtAndCollShares(cdpId);
+        uint256 icrBefore = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
+
+        uint256 debtChange = 0.1e18;
+        uint256 collValue = _debtToCollateral(debtChange) * 10005 / 10000;
+        uint256 stBalBefore = collateral.balanceOf(user);
 
         leverageZapRouter.adjustCdp(
             cdpId, 
@@ -250,8 +262,9 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 _isDebtIncrease: false,
                 _upperHint: bytes32(0),
                 _lowerHint: bytes32(0),
-                _stEthBalanceDecrease: collValue,
-                _stEthBalanceIncrease: 0,
+                _stEthBalanceChange: collValue,
+                _isStEthBalanceIncrease: false,
+                _stEthMarginIncrease: 0,
                 _useWstETHForDecrease: false
             }), 
             pmPermit, 
@@ -263,13 +276,20 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             )
         );
 
-        vm.stopPrank();
-
         (uint256 debtAfter, uint256 collAfter) = cdpManager.getSyncedDebtAndCollShares(cdpId);
+        uint256 icrAfter = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
+
+        uint256 stBalAfter = collateral.balanceOf(user);
 
         console2.log("debtBefore", debtBefore);
         console2.log("debtAfter", debtAfter);
         console2.log("collBefore", collBefore);
         console2.log("collAfter", collAfter);    
+        console2.log("icrBefore", icrBefore);
+        console2.log("icrAfter", icrAfter);
+        console2.log("stBalBefore", stBalBefore);
+        console2.log("stBalAfter", stBalAfter);
+
+        vm.stopPrank();
     }
 }

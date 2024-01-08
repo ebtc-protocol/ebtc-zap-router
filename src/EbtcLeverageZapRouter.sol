@@ -10,6 +10,7 @@ import {IBorrowerOperations} from "@ebtc/contracts/Interfaces/IBorrowerOperation
 import {IPositionManagers} from "@ebtc/contracts/Interfaces/IPositionManagers.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {SafeERC20} from "@ebtc/contracts/Dependencies/SafeERC20.sol";
+import {EbtcBase} from "@ebtc/contracts/Dependencies/EbtcBase.sol";
 import {IStETH} from "./interface/IStETH.sol";
 import {IWrappedETH} from "./interface/IWrappedETH.sol";
 import {IEbtcLeverageZapRouter} from "./interface/IEbtcLeverageZapRouter.sol";
@@ -17,6 +18,8 @@ import {IWstETH} from "./interface/IWstETH.sol";
 
 contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter {
     using SafeERC20 for IERC20;
+
+    uint256 public constant MIN_CHANGE = 1000;
 
     constructor(
         IEbtcLeverageZapRouter.DeploymentParams memory params
@@ -183,14 +186,17 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         });
     }
 
-    function _requireNonZeroAdjustment(
-        uint256 _stEthBalanceIncrease,
-        uint256 _debtChange,
-        uint256 _stEthBalanceDecrease
-    ) internal pure {
+    function _requireMinAdjustment(uint256 _change) internal pure {
         require(
-            _stEthBalanceIncrease != 0 || _stEthBalanceDecrease != 0 || _debtChange != 0,
-            "EbtcLeverageZapRouter: There must be either a collateral change or a debt change"
+            _change >= MIN_CHANGE,
+            "EbtcLeverageZapRouter: Debt or collateral change must be above min"
+        );
+    }
+
+    function _requireZeroOrMinAdjustment(uint256 _change) internal pure {
+        require(
+            _change == 0 || _change >= MIN_CHANGE,
+            "EbtcLeverageZapRouter: Margin increase must be zero or above min"
         );
     }
 
@@ -200,9 +206,13 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         PositionManagerPermit calldata _positionManagerPermit,
         bytes calldata _exchangeData
     ) external {
-        _requireNonZeroAdjustment(params._stEthBalanceIncrease, params._debtChange, params._stEthBalanceDecrease);
+        _requireMinAdjustment(params._debtChange);
+        _requireMinAdjustment(params._stEthBalanceChange);
+        _requireZeroOrMinAdjustment(params._stEthMarginIncrease);
 
-        (uint256 debt, uint256 coll) = ICdpManager(address(cdpManager)).getSyncedDebtAndCollShares(_cdpId);
+        (uint256 debt, uint256 coll) = ICdpManager(address(cdpManager)).getSyncedDebtAndCollShares(
+            _cdpId
+        );
 
         _permitPositionManagerApproval(_positionManagerPermit);
 
@@ -211,22 +221,27 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
             _cdpId: _cdpId,
             _flType: params._isDebtIncrease ? FlashLoanType.stETH : FlashLoanType.eBTC,
             _flAmount: params._flashLoanAmount,
+            _marginIncrease: params._stEthMarginIncrease,
             _cdp: AdjustCdpOperation({
                 _cdpId: _cdpId,
-                _stEthBalanceDecrease: params._stEthBalanceDecrease,
                 _EBTCChange: params._debtChange,
                 _isDebtIncrease: params._isDebtIncrease,
                 _upperHint: params._upperHint,
                 _lowerHint: params._lowerHint,
-                _stEthBalanceIncrease: params._stEthBalanceIncrease
+                _stEthBalanceIncrease: params._isStEthBalanceIncrease
+                    ? params._stEthBalanceChange
+                    : 0,
+                _stEthBalanceDecrease: params._isStEthBalanceIncrease
+                    ? 0
+                    : params._stEthBalanceChange
             }),
-            newDebt: params._isDebtIncrease
-                ? debt + params._debtChange
-                : debt - params._debtChange,
+            newDebt: params._isDebtIncrease ? debt + params._debtChange : debt - params._debtChange,
             newColl: 0,
             _exchangeData: _exchangeData
         });
         uint256 _zapStEthBalanceDiff = stEth.balanceOf(address(this)) - _zapStEthBalanceBefore;
+
+        console2.log("_zapStEthBalanceDiff", _zapStEthBalanceDiff);
 
         if (_zapStEthBalanceDiff > 0) {
             _transferStEthToCaller(

@@ -23,8 +23,9 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         bool _isDebtIncrease;
         bytes32 _upperHint;
         bytes32 _lowerHint;
-        uint256 _stEthBalanceDecrease;
-        uint256 _stEthBalanceIncrease;
+        uint256 _stEthMarginIncrease;
+        uint256 _stEthBalanceChange;
+        bool _isStEthBalanceIncrease;
         bool _useWstETHForDecrease;
     }
 }

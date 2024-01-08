@@ -9,6 +9,7 @@ import {IEbtcLeverageZapRouter} from "./interface/IEbtcLeverageZapRouter.sol";
 import {ZapRouterBase} from "./ZapRouterBase.sol";
 import {IStETH} from "./interface/IStETH.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
+import "forge-std/console2.sol";
 
 abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
     uint256 internal constant PRECISION = 1e18;
@@ -57,6 +58,8 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
             ebtcToken.transfer(msg.sender, ebtcBal);
         }
 
+        console2.log("collateralBal", collateralBal);
+
         if (collateralBal > 0) {
             stETH.transferShares(msg.sender, collateralBal);
         }
@@ -71,6 +74,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
         bytes32 _cdpId, 
         FlashLoanType _flType,
         uint256 _flAmount,
+        uint256 _marginIncrease,
         AdjustCdpOperation memory _cdp,
         uint256 newDebt,
         uint256 newColl,
@@ -79,7 +83,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
         LeverageMacroOperation memory op;
 
         op.tokenToTransferIn = address(stETH);
-        op.amountToTransferIn = _cdp._stEthBalanceIncrease;
+        op.amountToTransferIn = _marginIncrease;
         op.operationType = OperationType.AdjustCdpOperation;
         op.OperationData = abi.encode(_cdp);
 
