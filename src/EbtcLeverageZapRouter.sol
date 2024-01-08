@@ -208,32 +208,40 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
     ) external {
         _requireMinAdjustment(params._debtChange);
         _requireMinAdjustment(params._stEthBalanceChange);
-        _requireZeroOrMinAdjustment(params._stEthMarginIncrease);
+        _requireZeroOrMinAdjustment(params._stEthMarginBalance);
 
-        (uint256 debt, uint256 coll) = ICdpManager(address(cdpManager)).getSyncedDebtAndCollShares(
+        (uint256 debt, ) = ICdpManager(address(cdpManager)).getSyncedDebtAndCollShares(
             _cdpId
         );
 
         _permitPositionManagerApproval(_positionManagerPermit);
+
+        uint256 marginDecrease = params._isStEthBalanceIncrease ? 0 : params._stEthBalanceChange;
+        if (!params._isStEthMarginIncrease && params._stEthMarginBalance > 0) {
+            marginDecrease += params._stEthMarginBalance;
+        }
+
+        uint256 marginIncrease = params._isStEthBalanceIncrease
+                    ? params._stEthBalanceChange
+                    : 0;
+        if (params._isStEthMarginIncrease && params._stEthMarginBalance > 0) {
+            marginIncrease += params._stEthMarginBalance;
+        }
 
         uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
         _adjustCdpOperation({
             _cdpId: _cdpId,
             _flType: params._isDebtIncrease ? FlashLoanType.stETH : FlashLoanType.eBTC,
             _flAmount: params._flashLoanAmount,
-            _marginIncrease: params._stEthMarginIncrease,
+            _marginIncrease: params._isStEthMarginIncrease ? params._stEthMarginBalance : 0,
             _cdp: AdjustCdpOperation({
                 _cdpId: _cdpId,
                 _EBTCChange: params._debtChange,
                 _isDebtIncrease: params._isDebtIncrease,
                 _upperHint: params._upperHint,
                 _lowerHint: params._lowerHint,
-                _stEthBalanceIncrease: params._isStEthBalanceIncrease
-                    ? params._stEthBalanceChange
-                    : 0,
-                _stEthBalanceDecrease: params._isStEthBalanceIncrease
-                    ? 0
-                    : params._stEthBalanceChange
+                _stEthBalanceIncrease: marginIncrease,
+                _stEthBalanceDecrease: marginDecrease
             }),
             newDebt: params._isDebtIncrease ? debt + params._debtChange : debt - params._debtChange,
             newColl: 0,

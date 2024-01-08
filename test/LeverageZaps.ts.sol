@@ -209,7 +209,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 _lowerHint: bytes32(0),
                 _stEthBalanceChange: collValue,
                 _isStEthBalanceIncrease: true,
-                _stEthMarginIncrease: 0,
+                _stEthMarginBalance: 0.5e18,
+                _isStEthMarginIncrease: true,
                 _useWstETHForDecrease: false
             }), 
             pmPermit, 
@@ -226,14 +227,14 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         uint256 stBalAfter = collateral.balanceOf(user);
 
-        console2.log("debtBefore", debtBefore);
-        console2.log("debtAfter", debtAfter);
-        console2.log("collBefore", collBefore);
-        console2.log("collAfter", collAfter);
-        console2.log("icrBefore", icrBefore);
-        console2.log("icrAfter", icrAfter);
-        console2.log("stBalBefore", stBalBefore);
-        console2.log("stBalAfter", stBalAfter);
+        console2.log("debtBefore  :", debtBefore);
+        console2.log("debtAfter   :", debtAfter);
+        console2.log("collBefore  :", collBefore);
+        console2.log("collAfter   :", collAfter);    
+        console2.log("icrBefore   :", icrBefore);
+        console2.log("icrAfter    :", icrAfter);
+        console2.log("stBalBefore :", stBalBefore);
+        console2.log("stBalAfter  :", stBalAfter);
 
         vm.stopPrank();
     }
@@ -251,7 +252,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         uint256 icrBefore = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
 
         uint256 debtChange = 0.1e18;
-        uint256 collValue = _debtToCollateral(debtChange) * 10005 / 10000;
+        uint256 collValue = _debtToCollateral(debtChange) * 10003 / 10000 + 1;
         uint256 stBalBefore = collateral.balanceOf(user);
 
         leverageZapRouter.adjustCdp(
@@ -264,7 +265,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 _lowerHint: bytes32(0),
                 _stEthBalanceChange: collValue,
                 _isStEthBalanceIncrease: false,
-                _stEthMarginIncrease: 0,
+                _stEthMarginBalance: 0.5e18,
+                _isStEthMarginIncrease: false,
                 _useWstETHForDecrease: false
             }), 
             pmPermit, 
@@ -281,14 +283,14 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         uint256 stBalAfter = collateral.balanceOf(user);
 
-        console2.log("debtBefore", debtBefore);
-        console2.log("debtAfter", debtAfter);
-        console2.log("collBefore", collBefore);
-        console2.log("collAfter", collAfter);    
-        console2.log("icrBefore", icrBefore);
-        console2.log("icrAfter", icrAfter);
-        console2.log("stBalBefore", stBalBefore);
-        console2.log("stBalAfter", stBalAfter);
+        console2.log("debtBefore  :", debtBefore);
+        console2.log("debtAfter   :", debtAfter);
+        console2.log("collBefore  :", collBefore);
+        console2.log("collAfter   :", collAfter);    
+        console2.log("icrBefore   :", icrBefore);
+        console2.log("icrAfter    :", icrAfter);
+        console2.log("stBalBefore :", stBalBefore);
+        console2.log("stBalAfter  :", stBalAfter);
 
         vm.stopPrank();
     }
