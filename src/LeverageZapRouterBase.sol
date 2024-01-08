@@ -85,6 +85,8 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
 
         if (_cdp._isDebtIncrease) {
             op.swapsAfter =_getSwapOperations(address(ebtcToken), _cdp._EBTCChange, _exchangeData);
+        } else {
+            op.swapsAfter =_getSwapOperations(address(stETH), _cdp._stEthBalanceDecrease, _exchangeData);
         }
 
         _doOperation(

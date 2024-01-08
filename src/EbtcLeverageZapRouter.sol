@@ -183,13 +183,25 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         });
     }
 
+    function _requireNonZeroAdjustment(
+        uint256 _stEthBalanceIncrease,
+        uint256 _debtChange,
+        uint256 _stEthBalanceDecrease
+    ) internal pure {
+        require(
+            _stEthBalanceIncrease != 0 || _stEthBalanceDecrease != 0 || _debtChange != 0,
+            "EbtcLeverageZapRouter: There must be either a collateral change or a debt change"
+        );
+    }
+
     function adjustCdp(
         bytes32 _cdpId,
         AdjustCdpParams calldata params,
         PositionManagerPermit calldata _positionManagerPermit,
         bytes calldata _exchangeData
     ) external {
-        // TODO: make sure one of the parameters is non-zero
+        _requireNonZeroAdjustment(params._stEthBalanceIncrease, params._debtChange, params._stEthBalanceDecrease);
+
         (uint256 debt, uint256 coll) = ICdpManager(address(cdpManager)).getSyncedDebtAndCollShares(_cdpId);
 
         _permitPositionManagerApproval(_positionManagerPermit);

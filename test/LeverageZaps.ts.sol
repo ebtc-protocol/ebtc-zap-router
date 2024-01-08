@@ -226,4 +226,50 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         console2.log("collBefore", collBefore);
         console2.log("collAfter", collAfter);
     }
+
+    function test_adjustCdp_debtDecrease_stEth() public {
+        seedActivePool();
+
+        (address user, bytes32 cdpId) = createLeveragedPosition();
+
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
+
+        (uint256 debtBefore, uint256 collBefore) = cdpManager.getSyncedDebtAndCollShares(cdpId);
+
+        uint256 debtChange = 0.1e18;
+
+        vm.startPrank(user);
+
+        uint256 collValue = _debtToCollateral(debtChange) * 1005 / 1000;
+
+        leverageZapRouter.adjustCdp(
+            cdpId, 
+            IEbtcLeverageZapRouter.AdjustCdpParams({
+                _flashLoanAmount: debtChange,
+                _debtChange: debtChange,
+                _isDebtIncrease: false,
+                _upperHint: bytes32(0),
+                _lowerHint: bytes32(0),
+                _stEthBalanceDecrease: collValue,
+                _stEthBalanceIncrease: 0,
+                _useWstETHForDecrease: false
+            }), 
+            pmPermit, 
+            abi.encodeWithSelector(
+                mockDex.swap.selector,
+                address(collateral),
+                address(eBTCToken),
+                collValue // Debt amount
+            )
+        );
+
+        vm.stopPrank();
+
+        (uint256 debtAfter, uint256 collAfter) = cdpManager.getSyncedDebtAndCollShares(cdpId);
+
+        console2.log("debtBefore", debtBefore);
+        console2.log("debtAfter", debtAfter);
+        console2.log("collBefore", collBefore);
+        console2.log("collAfter", collAfter);    
+    }
 }
