@@ -47,4 +47,11 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         uint256 _stEthAmount,
         bytes calldata _exchangeData
     ) external;
+
+    function adjustCdp(
+        bytes32 _cdpId,
+        AdjustCdpParams calldata params,
+        PositionManagerPermit calldata _positionManagerPermit,
+        bytes calldata _exchangeData
+    ) external;
 }
