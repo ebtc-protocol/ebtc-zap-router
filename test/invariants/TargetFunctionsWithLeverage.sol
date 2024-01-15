@@ -63,13 +63,19 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
     }
 
     function openCdp(uint256 _debt, uint256 _marginAmount) public setup {
-        _debt = between(_debt, 1, MAXIMUM_DEBT);
+        _debt = between(_debt, 1000, MAXIMUM_DEBT);
 
         uint256 flAmount = _debtToCollateral(_debt);
+        uint256 minCollAmount = cdpManager.MIN_NET_STETH_BALANCE() + borrowerOperations.LIQUIDATOR_REWARD();
+
+        if (flAmount < minCollAmount) {
+            flAmount = minCollAmount;
+            _debt = _collateralToDebt(flAmount);
+        }
 
         if (flAmount > MAXIMUM_COLL) {
             flAmount = MAXIMUM_COLL;
-            _debt = _collateralToDebt(MAXIMUM_COLL);
+            _debt = _collateralToDebt(flAmount);
         }
 
         if (_marginAmount > MAXIMUM_COLL - flAmount) {
@@ -80,6 +86,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         console2.log(flAmount);
         console2.log(_marginAmount);
 
+        // Give stETH to active pool
         _dealCollateral(zapActor, flAmount, false);
 
         bool success;
@@ -90,6 +97,20 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             abi.encodeWithSelector(
                 CollateralTokenTester.transfer.selector,
                 activePool,
+                flAmount
+            ),
+            false
+        );
+        t(success, "transfer cannot fail");
+
+        // Give stETH to mock DEX
+        _dealCollateral(zapActor, flAmount, false);
+
+        (success, returnData) = zapActor.proxy(
+            address(collateral),
+            abi.encodeWithSelector(
+                CollateralTokenTester.transfer.selector,
+                mockDex,
                 flAmount
             ),
             false
@@ -144,7 +165,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 bytes32(0),
                 bytes32(0),
                 _flAmount,
-                _marginAmount, // Margin amount
+                _marginAmount,
                 _totalAmount,
                 pmPermit,
                 _encodeOpenTrade(_debt)
