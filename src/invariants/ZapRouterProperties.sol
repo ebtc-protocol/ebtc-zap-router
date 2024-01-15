@@ -2,13 +2,13 @@ pragma solidity 0.8.17;
 
 import {ZapRouterStateSnapshots} from "./ZapRouterStateSnapshots.sol";
 import {ZapRouterPropertiesDescriptions} from "./ZapRouterPropertiesDescriptions.sol";
-import {EchidnaAsserts} from "@ebtc/contracts/TestContracts/invariants/echidna/EchidnaAsserts.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
+import {Asserts} from "@ebtc/contracts/TestContracts/invariants/Asserts.sol";
 
 abstract contract ZapRouterProperties is
     ZapRouterStateSnapshots,
     ZapRouterPropertiesDescriptions,
-    EchidnaAsserts
+    Asserts
 {
     function echidna_ZR_01() public returns (bool) {
         return

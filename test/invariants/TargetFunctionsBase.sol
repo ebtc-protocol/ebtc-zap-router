@@ -42,7 +42,9 @@ abstract contract TargetFunctionsBase is TargetContractSetup, ZapRouterPropertie
         zapActorKeys[addresses[0]] = USER1_PK;
         zapActorKeys[addresses[1]] = USER2_PK;
         zapActorKeys[addresses[2]] = USER3_PK;
+        zapActorAddrs = new address[](NUMBER_OF_ACTORS);
         for (uint i = 0; i < NUMBER_OF_ACTORS; i++) {
+            zapActorAddrs[i] = addresses[i];
             zapActors[addresses[i]] = new ZapRouterActor(
                 tokens,
                 address(zapRouter),

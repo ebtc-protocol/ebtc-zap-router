@@ -19,6 +19,7 @@ abstract contract ZapRouterBaseStorageVariables is BaseStorageVariables {
 
     mapping(address => ZapRouterActor) internal zapActors;
     mapping(address => uint256) internal zapActorKeys;
+    address[] internal zapActorAddrs;
     address internal zapSender;
     ZapRouterActor internal zapActor;
     uint256 internal zapActorKey;
