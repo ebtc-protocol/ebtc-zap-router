@@ -29,4 +29,22 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         bool _isStEthBalanceIncrease;
         bool _useWstETHForDecrease;
     }
+
+    function openCdp(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _stEthLoanAmount,
+        uint256 _stEthMarginAmount,
+        uint256 _stEthDepositAmount,
+        PositionManagerPermit calldata _positionManagerPermit,
+        bytes calldata _exchangeData
+    ) external returns (bytes32 cdpId);
+
+    function closeCdp(
+        bytes32 _cdpId,
+        PositionManagerPermit calldata _positionManagerPermit,
+        uint256 _stEthAmount,
+        bytes calldata _exchangeData
+    ) external;
 }

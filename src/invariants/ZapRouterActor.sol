@@ -20,12 +20,16 @@ contract ZapRouterActor {
         leverageZapRouter = _leverageZapRouter;
         sender = _sender;
         for (uint256 i = 0; i < tokens.length; i++) {
-            IERC20(tokens[i]).approve(zapRouter, type(uint256).max);
-            hevm.prank(sender);
-            IERC20(tokens[i]).approve(zapRouter, type(uint256).max);
-            IERC20(tokens[i]).approve(leverageZapRouter, type(uint256).max);
-            hevm.prank(sender);
-            IERC20(tokens[i]).approve(leverageZapRouter, type(uint256).max);
+            if (zapRouter != address(0)) {
+                IERC20(tokens[i]).approve(zapRouter, type(uint256).max);
+                hevm.prank(sender);
+                IERC20(tokens[i]).approve(zapRouter, type(uint256).max);                
+            }
+            if (leverageZapRouter != address(0)) {
+                IERC20(tokens[i]).approve(leverageZapRouter, type(uint256).max);
+                hevm.prank(sender);
+                IERC20(tokens[i]).approve(leverageZapRouter, type(uint256).max);
+            }
         }
     }
 

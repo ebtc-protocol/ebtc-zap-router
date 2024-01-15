@@ -21,7 +21,6 @@ import {IEbtcZapRouterBase} from "../../src/interface/IEbtcZapRouterBase.sol";
 import {WstETH} from "../../src/testContracts/WstETH.sol";
 
 abstract contract TargetFunctionsBase is TargetContractSetup, ZapRouterProperties {
-
     modifier setup() virtual {
         zapSender = msg.sender;
         zapActor = zapActors[msg.sender];
@@ -79,12 +78,12 @@ abstract contract TargetFunctionsBase is TargetContractSetup, ZapRouterPropertie
         assert(success);
     }
 
-    function _dealCollateral(ZapRouterActor actor) internal {
+    function _dealCollateral(ZapRouterActor actor, uint256 amount) internal {
         _dealETH(actor);
         (bool success, ) = actor.proxy(
             address(collateral),
             abi.encodeWithSelector(CollateralTokenTester.deposit.selector, ""),
-            INITIAL_COLL_BALANCE,
+            amount,
             false
         );
         assert(success);
@@ -128,5 +127,67 @@ abstract contract TargetFunctionsBase is TargetContractSetup, ZapRouterPropertie
         );
         assert(success);
     }
-    
+
+    function _checkApproval(address _user) internal {
+        uint positionManagerApproval = uint256(
+            borrowerOperations.getPositionManagerApproval(
+                _user,
+                address(zapRouter)
+            )
+        );
+
+        t(
+            positionManagerApproval ==
+                uint256(IPositionManagers.PositionManagerApproval.None),
+            "ZR-04: Zap should have no PM approval after operation"
+        );
+    }
+
+    function _generatePermitSignature(
+        address _signer,
+        address _positionManager,
+        IPositionManagers.PositionManagerApproval _approval,
+        uint _deadline
+    ) internal returns (bytes32) {
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                borrowerOperations.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        borrowerOperations.permitTypeHash(),
+                        _signer,
+                        _positionManager,
+                        _approval,
+                        borrowerOperations.nonces(_signer),
+                        _deadline
+                    )
+                )
+            )
+        );
+        return digest;
+    }
+
+    function _generateOneTimePermit(
+        address user,
+        uint256 pk
+    ) internal returns (IEbtcZapRouterBase.PositionManagerPermit memory) {
+        uint _deadline = (block.timestamp + deadline);
+        IPositionManagers.PositionManagerApproval _approval = IPositionManagers
+            .PositionManagerApproval
+            .OneTime;
+
+        // Generate signature to one-time approve zap
+        bytes32 digest = _generatePermitSignature(
+            user,
+            address(zapRouter),
+            _approval,
+            _deadline
+        );
+        (uint8 v, bytes32 r, bytes32 s) = hevm.sign(pk, digest);
+
+        IEbtcZapRouterBase.PositionManagerPermit memory pmPermit = IEbtcZapRouterBase
+            .PositionManagerPermit(_deadline, v, r, s);
+        return pmPermit;
+    }
 }

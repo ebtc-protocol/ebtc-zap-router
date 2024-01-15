@@ -3,9 +3,9 @@ pragma solidity 0.8.17;
 
 import {TargetFunctionsNoLeverage} from "../TargetFunctionsNoLeverage.sol";
 
-contract EchidnaTester is TargetFunctionsNoLeverage {
+contract EchidnaNoLeverageTester is TargetFunctionsNoLeverage {
     constructor() payable {
-        super.setUp();
-        super.setUpActors();
+       // super.setUp();
+       // super.setUpActors();
     }
 }
