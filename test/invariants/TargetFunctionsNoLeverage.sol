@@ -39,7 +39,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
     }
 
     function openCdpWithEth(uint256 _debt, uint256 _ethBalance) public setup {
-        _dealETH(zapActor);
+        _dealETH(zapActor, INITIAL_COLL_BALANCE);
 
         bool success;
         bytes memory returnData;
@@ -66,6 +66,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 
@@ -91,7 +92,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         uint256 _debt,
         uint256 _wethBalance
     ) public setup {
-        _dealWETH(zapActor);
+        _dealWETH(zapActor, INITIAL_COLL_BALANCE, true);
 
         bool success;
         bytes memory returnData;
@@ -122,6 +123,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 
@@ -146,7 +148,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         uint256 _debt,
         uint256 _wstEthBalance
     ) public setup {
-        _dealWrappedCollateral(zapActor);
+        _dealWrappedCollateral(zapActor, INITIAL_COLL_BALANCE, true);
 
         bool success;
         bytes memory returnData;
@@ -177,6 +179,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 
@@ -216,6 +219,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 
@@ -241,7 +245,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         uint _stEthBalanceIncrease,
         bool _useWstETHForDecrease
     ) public setup {
-        _dealCollateral(zapActor, INITIAL_COLL_BALANCE);
+        _dealCollateral(zapActor, INITIAL_COLL_BALANCE, true);
 
         bool success;
         bytes memory returnData;
@@ -278,6 +282,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 
@@ -310,7 +315,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         uint256 _wethBalanceIncrease,
         bool _useWstETHForDecrease
     ) public setup {
-        _dealWETH(zapActor);
+        _dealWETH(zapActor, INITIAL_COLL_BALANCE, true);
 
         bool success;
         bytes memory returnData;
@@ -347,6 +352,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 
@@ -379,7 +385,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         uint256 _wstEthBalanceIncrease,
         bool _useWstETHForDecrease
     ) public setup {
-        _dealWrappedCollateral(zapActor);
+        _dealWrappedCollateral(zapActor, INITIAL_COLL_BALANCE, true);
 
         bool success;
         bytes memory returnData;
@@ -416,6 +422,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 

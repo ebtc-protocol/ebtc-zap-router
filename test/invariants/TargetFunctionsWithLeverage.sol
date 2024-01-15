@@ -21,9 +21,11 @@ import {IEbtcLeverageZapRouter} from "../../src/interface/IEbtcLeverageZapRouter
 import {IEbtcZapRouterBase} from "../../src/interface/IEbtcZapRouterBase.sol";
 import {WstETH} from "../../src/testContracts/WstETH.sol";
 import {TargetFunctionsBase} from "./TargetFunctionsBase.sol";
+import "forge-std/console2.sol";
 
 abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
     uint256 public constant MAXIMUM_DEBT = 1e27;
+    uint256 public constant MAXIMUM_COLL = 2000000 ether;
     uint256 internal constant SLIPPAGE_PRECISION = 1e4;
     /// @notice Collateral buffer used to account for slippage and fees
     /// 9995 = 0.05%
@@ -55,43 +57,58 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         return (_debt * 1e18) / price;
     }
 
+    function _collateralToDebt(uint256 _coll) public returns (uint256) {
+        uint256 price = priceFeedMock.fetchPrice();
+        return (_coll * price) / 1e18;
+    }
+
     function openCdp(uint256 _debt, uint256 _marginAmount) public setup {
         _debt = between(_debt, 1, MAXIMUM_DEBT);
 
         uint256 flAmount = _debtToCollateral(_debt);
 
-        _dealCollateral(zapActor, flAmount);
+        if (flAmount > MAXIMUM_COLL) {
+            flAmount = MAXIMUM_COLL;
+            _debt = _collateralToDebt(MAXIMUM_COLL);
+        }
 
-        zapActor.proxy(
-            address(collateral),
-            abi.encodeWithSelector(CollateralTokenTester.transfer.selector, activePool, flAmount),
-            false
-        );
+        if (_marginAmount > MAXIMUM_COLL - flAmount) {
+            _marginAmount = MAXIMUM_COLL - flAmount;
+        }
 
-        _dealCollateral(zapActor, _marginAmount);
+        console2.log(_debt);
+        console2.log(flAmount);
+        console2.log(_marginAmount);
+
+        _dealCollateral(zapActor, flAmount, false);
 
         bool success;
         bytes memory returnData;
 
-        (success, returnData) = _openCdp(
-            _debt,
-            flAmount,
-            _marginAmount,
-            ((flAmount + _marginAmount) * COLLATERAL_BUFFER) / SLIPPAGE_PRECISION
+        (success, returnData) = zapActor.proxy(
+            address(collateral),
+            abi.encodeWithSelector(
+                CollateralTokenTester.transfer.selector,
+                activePool,
+                flAmount
+            ),
+            false
         );
+        t(success, "transfer cannot fail");
+
+        _dealCollateral(zapActor, _marginAmount, true);
+
+        uint256 totalDeposit = ((flAmount + _marginAmount) * COLLATERAL_BUFFER) / SLIPPAGE_PRECISION;
+
+        (success, returnData) = _openCdp(_debt, flAmount, _marginAmount, totalDeposit);
 
         if (!success) {
-            uint256 fee = activePool.flashFee(address(collateral), flAmount);
-            uint256 cr = hintHelpers.computeCR(
-                flAmount - fee + _marginAmount,
-                _debt,
-                priceFeedMock.fetchPrice()
-            );
+            uint256 cr = hintHelpers.computeCR(totalDeposit, _debt, priceFeedMock.fetchPrice());
 
             t(cr < borrowerOperations.MCR(), ZR_07);
         }
 
-        _checkApproval(address(zapSender));
+        _checkApproval(address(leverageZapRouter));
     }
 
     function _openCdp(
@@ -102,7 +119,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
     ) internal returns (bool success, bytes memory returnData) {
         return
             zapActor.proxy(
-                address(zapRouter),
+                address(leverageZapRouter),
                 _encodeOpenParams(_debt, _flAmount, _marginAmount, _totalAmount),
                 true
             );
@@ -116,6 +133,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
     ) internal returns (bytes memory) {
         IEbtcZapRouterBase.PositionManagerPermit memory pmPermit = _generateOneTimePermit(
             address(zapSender),
+            address(leverageZapRouter),
             zapActorKey
         );
 
@@ -158,6 +176,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
 
         IEbtcZapRouterBase.PositionManagerPermit memory pmPermit = _generateOneTimePermit(
             address(zapSender),
+            address(leverageZapRouter),
             zapActorKey
         );
 
@@ -169,7 +188,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         );
 
         (success, returnData) = zapActor.proxy(
-            address(zapRouter),
+            address(leverageZapRouter),
             abi.encodeWithSelector(
                 IEbtcLeverageZapRouter.closeCdp.selector,
                 _cdpId,
@@ -186,6 +205,6 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         );
         t(success, "Call shouldn't fail");
 
-        _checkApproval(address(zapSender));
+        _checkApproval(address(leverageZapRouter));
     }
 }

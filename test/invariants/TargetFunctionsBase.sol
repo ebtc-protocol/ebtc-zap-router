@@ -52,49 +52,61 @@ abstract contract TargetFunctionsBase is TargetContractSetup, ZapRouterPropertie
         }
     }
 
-    function _dealETH(ZapRouterActor actor) internal {
-        (bool success, ) = address(actor).call{value: INITIAL_ETH_BALANCE}("");
+    function _dealETH(ZapRouterActor actor, uint256 amount) internal {
+        (bool success, ) = address(actor).call{value: amount}("");
         assert(success);
     }
 
-    function _dealWETH(ZapRouterActor actor) internal {
-        _dealETH(actor);
+    function _dealWETH(ZapRouterActor actor, uint256 amount, bool useSender) internal {
+        _dealETH(actor, amount);
         (bool success, ) = actor.proxy(
             address(testWeth),
             abi.encodeWithSelector(WETH9.deposit.selector, ""),
-            INITIAL_ETH_BALANCE,
+            amount,
             false
         );
         assert(success);
-        (success, ) = actor.proxy(
-            address(testWeth),
-            abi.encodeWithSelector(
-                WETH9.transfer.selector,
-                actor.sender(),
-                INITIAL_ETH_BALANCE
-            ),
-            false
-        );
+        if (useSender) {
+            (success, ) = actor.proxy(
+                address(testWeth),
+                abi.encodeWithSelector(WETH9.transfer.selector, actor.sender(), amount),
+                false
+            );
+        }
         assert(success);
     }
 
-    function _dealCollateral(ZapRouterActor actor, uint256 amount) internal {
-        _dealETH(actor);
+    function _dealCollateral(ZapRouterActor actor, uint256 amount, bool useSender) internal {
+        _dealETH(actor, amount);
+        uint256 amountBefore = IERC20(address(collateral)).balanceOf(address(actor));
         (bool success, ) = actor.proxy(
             address(collateral),
             abi.encodeWithSelector(CollateralTokenTester.deposit.selector, ""),
             amount,
             false
         );
+        uint256 amountAfter = IERC20(address(collateral)).balanceOf(address(actor));
         assert(success);
+        if (useSender) {
+            (success, ) = actor.proxy(
+                address(collateral),
+                abi.encodeWithSelector(
+                    IERC20.transfer.selector,
+                    actor.sender(),
+                    amountAfter - amountBefore
+                ),
+                false
+            );
+            assert(success);
+        }
     }
 
-    function _dealWrappedCollateral(ZapRouterActor actor) internal {
-        _dealETH(actor);
+    function _dealWrappedCollateral(ZapRouterActor actor, uint256 amount, bool useSender) internal {
+        _dealETH(actor, amount);
         (bool success, ) = actor.proxy(
             address(collateral),
             abi.encodeWithSelector(CollateralTokenTester.deposit.selector, ""),
-            INITIAL_COLL_BALANCE,
+            amount,
             false
         );
         assert(success);
@@ -103,7 +115,7 @@ abstract contract TargetFunctionsBase is TargetContractSetup, ZapRouterPropertie
             abi.encodeWithSelector(
                 CollateralTokenTester.approve.selector,
                 address(testWstEth),
-                INITIAL_COLL_BALANCE
+                amount
             ),
             false
         );
@@ -111,34 +123,32 @@ abstract contract TargetFunctionsBase is TargetContractSetup, ZapRouterPropertie
         uint256 amountBefore = IERC20(testWstEth).balanceOf(address(actor));
         (success, ) = actor.proxy(
             testWstEth,
-            abi.encodeWithSelector(WstETH.wrap.selector, INITIAL_COLL_BALANCE),
+            abi.encodeWithSelector(WstETH.wrap.selector, amount),
             false
         );
         assert(success);
         uint256 amountAfter = IERC20(testWstEth).balanceOf(address(actor));
-        (success, ) = actor.proxy(
-            testWstEth,
-            abi.encodeWithSelector(
-                IERC20.transfer.selector,
-                actor.sender(),
-                amountAfter - amountBefore
-            ),
-            false
-        );
-        assert(success);
+        if (useSender) {
+            (success, ) = actor.proxy(
+                testWstEth,
+                abi.encodeWithSelector(
+                    IERC20.transfer.selector,
+                    actor.sender(),
+                    amountAfter - amountBefore
+                ),
+                false
+            );
+            assert(success);
+        }
     }
 
     function _checkApproval(address _user) internal {
         uint positionManagerApproval = uint256(
-            borrowerOperations.getPositionManagerApproval(
-                _user,
-                address(zapRouter)
-            )
+            borrowerOperations.getPositionManagerApproval(_user, address(zapRouter))
         );
 
         t(
-            positionManagerApproval ==
-                uint256(IPositionManagers.PositionManagerApproval.None),
+            positionManagerApproval == uint256(IPositionManagers.PositionManagerApproval.None),
             "ZR-04: Zap should have no PM approval after operation"
         );
     }
@@ -170,6 +180,7 @@ abstract contract TargetFunctionsBase is TargetContractSetup, ZapRouterPropertie
 
     function _generateOneTimePermit(
         address user,
+        address target,
         uint256 pk
     ) internal returns (IEbtcZapRouterBase.PositionManagerPermit memory) {
         uint _deadline = (block.timestamp + deadline);
@@ -178,12 +189,7 @@ abstract contract TargetFunctionsBase is TargetContractSetup, ZapRouterPropertie
             .OneTime;
 
         // Generate signature to one-time approve zap
-        bytes32 digest = _generatePermitSignature(
-            user,
-            address(zapRouter),
-            _approval,
-            _deadline
-        );
+        bytes32 digest = _generatePermitSignature(user, target, _approval, _deadline);
         (uint8 v, bytes32 r, bytes32 s) = hevm.sign(pk, digest);
 
         IEbtcZapRouterBase.PositionManagerPermit memory pmPermit = IEbtcZapRouterBase
