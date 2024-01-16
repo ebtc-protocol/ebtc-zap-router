@@ -16,14 +16,20 @@ import {IWrappedETH} from "./interface/IWrappedETH.sol";
 import {IEbtcLeverageZapRouter} from "./interface/IEbtcLeverageZapRouter.sol";
 import {IWstETH} from "./interface/IWstETH.sol";
 
+interface IMinChangeGetter {
+    function MIN_CHANGE() external view returns (uint256);
+}
+
 contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter {
     using SafeERC20 for IERC20;
 
-    uint256 public constant MIN_CHANGE = 1000;
+    uint256 public immutable MIN_CHANGE;
 
     constructor(
         IEbtcLeverageZapRouter.DeploymentParams memory params
-    ) LeverageZapRouterBase(params) {}
+    ) LeverageZapRouterBase(params) {
+        MIN_CHANGE = IMinChangeGetter(params.borrowerOperations).MIN_CHANGE();
+    }
 
     function openCdpWithEth(
         uint256 _debt,
@@ -133,18 +139,6 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         PositionManagerPermit calldata _positionManagerPermit,
         bytes calldata _exchangeData
     ) internal returns (bytes32 cdpId) {
-        // TODO: calculate this for real, need to figure out how to specify leverage ratio
-        // TODO: check max leverage here once we know how leverage will be specified
-        //uint256 flAmount = _debtToCollateral(_debt);
-
-        // We need to deposit slightly less collateral to account for fees / slippage
-        // COLLATERAL_BUFFER is a temporary solution to make the tests pass
-        // TODO: discuss this and see if it's better to pass in some sort of slippage setting
-        //  uint256 totalCollateral = ;
-
-        // TODO: compute CR >= MSCR (minimum safe collateral ratio)
-        // TODO: check fetchPrice gas
-
         _permitPositionManagerApproval(_positionManagerPermit);
 
         cdpId = sortedCdps.toCdpId(msg.sender, block.number, sortedCdps.nextCdpNonce());
@@ -186,14 +180,14 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         });
     }
 
-    function _requireMinAdjustment(uint256 _change) internal pure {
+    function _requireMinAdjustment(uint256 _change) internal view {
         require(
             _change >= MIN_CHANGE,
             "EbtcLeverageZapRouter: Debt or collateral change must be above min"
         );
     }
 
-    function _requireZeroOrMinAdjustment(uint256 _change) internal pure {
+    function _requireZeroOrMinAdjustment(uint256 _change) internal view {
         require(
             _change == 0 || _change >= MIN_CHANGE,
             "EbtcLeverageZapRouter: Margin increase must be zero or above min"

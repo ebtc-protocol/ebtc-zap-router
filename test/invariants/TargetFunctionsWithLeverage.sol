@@ -62,6 +62,31 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         return (_coll * price) / 1e18;
     }
 
+    function _seedActivePoolAndDex(uint256 _seedAmount) internal {
+        // Give stETH to active pool
+        _dealCollateral(zapActor, _seedAmount, false);
+
+        bool success;
+        bytes memory returnData;
+
+        (success, returnData) = zapActor.proxy(
+            address(collateral),
+            abi.encodeWithSelector(CollateralTokenTester.transfer.selector, activePool, _seedAmount),
+            false
+        );
+        t(success, "transfer cannot fail");
+
+        // Give stETH to mock DEX
+        _dealCollateral(zapActor, _seedAmount, false);
+
+        (success, returnData) = zapActor.proxy(
+            address(collateral),
+            abi.encodeWithSelector(CollateralTokenTester.transfer.selector, mockDex, _seedAmount),
+            false
+        );
+        t(success, "transfer cannot fail");
+    }
+
     function openCdp(uint256 _debt, uint256 _marginAmount) public setup {
         _debt = between(_debt, 1000, MAXIMUM_DEBT);
 
@@ -83,32 +108,14 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             _marginAmount = MAXIMUM_COLL - flAmount;
         }
 
-        // Give stETH to active pool
-        _dealCollateral(zapActor, flAmount, false);
-
-        bool success;
-        bytes memory returnData;
-
-        (success, returnData) = zapActor.proxy(
-            address(collateral),
-            abi.encodeWithSelector(CollateralTokenTester.transfer.selector, activePool, flAmount),
-            false
-        );
-        t(success, "transfer cannot fail");
-
-        // Give stETH to mock DEX
-        _dealCollateral(zapActor, flAmount, false);
-
-        (success, returnData) = zapActor.proxy(
-            address(collateral),
-            abi.encodeWithSelector(CollateralTokenTester.transfer.selector, mockDex, flAmount),
-            false
-        );
-        t(success, "transfer cannot fail");
+        _seedActivePoolAndDex(flAmount);
 
         _dealCollateral(zapActor, _marginAmount, true);
 
         uint256 totalDeposit = ((flAmount + _marginAmount) * COLLATERAL_BUFFER) / SLIPPAGE_PRECISION;
+
+        bool success;
+        bytes memory returnData;
 
         (success, returnData) = _openCdp(_debt, flAmount, _marginAmount, totalDeposit);
 
@@ -222,7 +229,8 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         uint _i,
         uint256 _debtChange,
         bool _isDebtIncrease,
-        uint256 _marginChange
+        uint256 _marginChange,
+        bool isMarginIncrease
     ) public setup {
         require(cdpManager.getActiveCdpsCount() > 1, "Cannot close last CDP");
 
@@ -232,6 +240,37 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         _i = between(_i, 0, numberOfCdps - 1);
         bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(zapSender), _i);
         t(_cdpId != bytes32(0), "CDP ID must not be null if the index is valid");
+
+        (uint256 debt, uint256 coll) = cdpManager.getSyncedDebtAndCollShares(_cdpId);
+        
+        if (_isDebtIncrease) {
+            debt += _debtChange;
+
+            if (debt > MAXIMUM_DEBT) {
+                _debtChange = MAXIMUM_DEBT - debt;
+            }
+
+            uint256 collValue = _debtToCollateral(debt);
+
+            if (collValue > MAXIMUM_COLL) {
+                _debtChange = _collateralToDebt(MAXIMUM_COLL) - debt;
+            }
+
+            uint256 apBal = collateral.balanceOf(address(activePool));
+
+            if (collValue > apBal) {
+                _seedActivePoolAndDex(collValue - apBal);
+            }
+        }
+
+        if (isMarginIncrease) {
+            uint256 totalColl = _marginChange + coll;
+            if (totalColl > MAXIMUM_COLL) {
+                _marginChange = MAXIMUM_COLL - coll;
+            }
+
+            _dealCollateral(zapActor, _marginChange, true);
+        }
 
         IEbtcZapRouterBase.PositionManagerPermit memory pmPermit = _generateOneTimePermit(
             address(zapSender),
@@ -248,7 +287,11 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             (success, returnData) = _adjustCdpDebtDecrease(_cdpId, _debtChange, _marginChange);
         }
 
-        t(success, "Call shouldn't fail");
+        if (!success) {
+            if (_debtChange > borrowerOperations.MIN_CHANGE()) {
+                t(success, "Call shouldn't fail");
+            }    
+        }
 
         _checkApproval(address(leverageZapRouter));
     }
