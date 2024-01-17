@@ -5,13 +5,14 @@ import {IPositionManagers} from "@ebtc/contracts/Interfaces/IBorrowerOperations.
 import {IPriceFeed} from "@ebtc/contracts/Interfaces/IPriceFeed.sol";
 import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {LeverageMacroBase} from "@ebtc/contracts/LeverageMacroBase.sol";
+import {ReentrancyGuard} from "@ebtc/contracts/Dependencies/ReentrancyGuard.sol";
 import {IEbtcLeverageZapRouter} from "./interface/IEbtcLeverageZapRouter.sol";
 import {ZapRouterBase} from "./ZapRouterBase.sol";
 import {IStETH} from "./interface/IStETH.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import "forge-std/console2.sol";
 
-abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase {
+abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, ReentrancyGuard {
     uint256 internal constant PRECISION = 1e18;
 
     address internal immutable theOwner;

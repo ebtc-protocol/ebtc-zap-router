@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import {Test, console2} from "forge-std/Test.sol";
 import {IERC3156FlashLender} from "@ebtc/contracts/Interfaces/IERC3156FlashLender.sol";
 import {LeverageZapRouterBase} from "./LeverageZapRouterBase.sol";
 import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManagerData.sol";
@@ -138,7 +137,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         uint256 _stEthDepositAmount,
         PositionManagerPermit calldata _positionManagerPermit,
         bytes calldata _exchangeData
-    ) internal returns (bytes32 cdpId) {
+    ) internal nonReentrant returns (bytes32 cdpId) {
         _permitPositionManagerApproval(_positionManagerPermit);
 
         cdpId = sortedCdps.toCdpId(msg.sender, block.number, sortedCdps.nextCdpNonce());
@@ -167,7 +166,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         PositionManagerPermit calldata _positionManagerPermit,
         uint256 _stEthAmount,
         bytes calldata _exchangeData
-    ) external {
+    ) external nonReentrant {
         ICdpManagerData.Cdp memory cdpInfo = cdpManager.Cdps(_cdpId);
 
         _permitPositionManagerApproval(_positionManagerPermit);
@@ -199,7 +198,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         AdjustCdpParams calldata params,
         PositionManagerPermit calldata _positionManagerPermit,
         bytes calldata _exchangeData
-    ) external {
+    ) external nonReentrant {
         _requireMinAdjustment(params._debtChange);
         _requireMinAdjustment(params._stEthBalanceChange);
         _requireZeroOrMinAdjustment(params._stEthMarginBalance);
@@ -242,8 +241,6 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
             _exchangeData: _exchangeData
         });
         uint256 _zapStEthBalanceDiff = stEth.balanceOf(address(this)) - _zapStEthBalanceBefore;
-
-        console2.log("_zapStEthBalanceDiff", _zapStEthBalanceDiff);
 
         if (_zapStEthBalanceDiff > 0) {
             _transferStEthToCaller(
