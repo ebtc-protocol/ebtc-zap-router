@@ -16,8 +16,6 @@ import {IWstETH} from "./interface/IWstETH.sol";
 contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
     using SafeERC20 for IERC20;
 
-    address public constant NATIVE_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-
     IERC20 public immutable ebtc;
     IBorrowerOperations public immutable borrowerOperations;
     ICdpManager public immutable cdpManager;
@@ -523,14 +521,6 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
                 _zapStEthBalanceAfter - _zapStEthBalanceBefore
             );
         }
-    }
-
-    function _transferInitialStETHFromCaller(uint256 _initialStETH) internal returns (uint256) {
-        // check before-after balances for 1-wei corner case
-        uint256 _balBefore = stEth.balanceOf(address(this));
-        stEth.transferFrom(msg.sender, address(this), _initialStETH);
-        uint256 _deposit = stEth.balanceOf(address(this)) - _balBefore;
-        return _deposit;
     }
 
     function _getOwnerAddress(bytes32 cdpId) internal pure returns (address) {

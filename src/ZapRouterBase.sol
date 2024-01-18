@@ -12,6 +12,8 @@ import {IStETH} from "./interface/IStETH.sol";
 import {IWstETH} from "./interface/IWstETH.sol";
 
 abstract contract ZapRouterBase is IEbtcZapRouterBase {
+    address public constant NATIVE_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
     IERC20 public immutable wstEth;
     IStETH public immutable stEth;
     IERC20 public immutable wrappedEth;
@@ -91,5 +93,13 @@ abstract contract ZapRouterBase is IEbtcZapRouterBase {
             );
             stEth.transfer(msg.sender, _stEthVal);
         }
+    }
+
+    function _transferInitialStETHFromCaller(uint256 _initialStETH) internal returns (uint256) {
+        // check before-after balances for 1-wei corner case
+        uint256 _balBefore = stEth.balanceOf(address(this));
+        stEth.transferFrom(msg.sender, address(this), _initialStETH);
+        uint256 _deposit = stEth.balanceOf(address(this)) - _balBefore;
+        return _deposit;
     }
 }
