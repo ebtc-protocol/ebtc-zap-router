@@ -202,16 +202,16 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         leverageZapRouter.adjustCdp(
             cdpId, 
             IEbtcLeverageZapRouter.AdjustCdpParams({
-                _flashLoanAmount: _debtToCollateral(debtChange),
-                _debtChange: debtChange,
-                _isDebtIncrease: true,
-                _upperHint: bytes32(0),
-                _lowerHint: bytes32(0),
-                _stEthBalanceChange: collValue,
-                _isStEthBalanceIncrease: true,
-                _stEthMarginBalance: 0.5e18,
-                _isStEthMarginIncrease: true,
-                _useWstETHForDecrease: false
+                flashLoanAmount: _debtToCollateral(debtChange),
+                debtChange: debtChange,
+                isDebtIncrease: true,
+                upperHint: bytes32(0),
+                lowerHint: bytes32(0),
+                stEthBalanceChange: collValue,
+                isStEthBalanceIncrease: true,
+                stEthMarginBalance: 0.5e18,
+                isStEthMarginIncrease: true,
+                useWstETHForDecrease: false
             }), 
             pmPermit, 
             abi.encodeWithSelector(
@@ -258,16 +258,16 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         leverageZapRouter.adjustCdp(
             cdpId, 
             IEbtcLeverageZapRouter.AdjustCdpParams({
-                _flashLoanAmount: debtChange,
-                _debtChange: debtChange,
-                _isDebtIncrease: false,
-                _upperHint: bytes32(0),
-                _lowerHint: bytes32(0),
-                _stEthBalanceChange: collValue,
-                _isStEthBalanceIncrease: false,
-                _stEthMarginBalance: 0.5e18,
-                _isStEthMarginIncrease: false,
-                _useWstETHForDecrease: false
+                flashLoanAmount: debtChange,
+                debtChange: debtChange,
+                isDebtIncrease: false,
+                upperHint: bytes32(0),
+                lowerHint: bytes32(0),
+                stEthBalanceChange: collValue,
+                isStEthBalanceIncrease: false,
+                stEthMarginBalance: 0.5e18,
+                isStEthMarginIncrease: false,
+                useWstETHForDecrease: false
             }), 
             pmPermit, 
             abi.encodeWithSelector(

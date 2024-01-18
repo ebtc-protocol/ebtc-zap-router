@@ -18,16 +18,16 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
     }
 
     struct AdjustCdpParams {
-        uint256 _flashLoanAmount;
-        uint256 _debtChange;
-        bool _isDebtIncrease;
-        bytes32 _upperHint;
-        bytes32 _lowerHint;
-        uint256 _stEthMarginBalance;
-        bool _isStEthMarginIncrease;
-        uint256 _stEthBalanceChange;
-        bool _isStEthBalanceIncrease;
-        bool _useWstETHForDecrease;
+        uint256 flashLoanAmount;
+        uint256 debtChange;
+        bool isDebtIncrease;
+        bytes32 upperHint;
+        bytes32 lowerHint;
+        uint256 stEthMarginBalance;
+        bool isStEthMarginIncrease;
+        uint256 stEthBalanceChange;
+        bool isStEthBalanceIncrease;
+        bool useWstETHForDecrease;
     }
 
     function openCdp(
@@ -41,7 +41,47 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         bytes calldata _exchangeData
     ) external returns (bytes32 cdpId);
 
+    function openCdpWithEth(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _stEthLoanAmount,
+        uint256 _ethMarginBalance,
+        uint256 _stEthDepositAmount,
+        PositionManagerPermit calldata _positionManagerPermit,
+        bytes calldata _exchangeData
+    ) external payable returns (bytes32 cdpId);
+
+    function openCdpWithWstEth(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _stEthLoanAmount,
+        uint256 _wstEthMarginBalance,
+        uint256 _stEthDepositAmount,
+        PositionManagerPermit calldata _positionManagerPermit,
+        bytes calldata _exchangeData
+    ) external returns (bytes32 cdpId);
+
+    function openCdpWithWrappedEth(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _stEthLoanAmount,
+        uint256 _wethMarginBalance,
+        uint256 _stEthDepositAmount,
+        PositionManagerPermit calldata _positionManagerPermit,
+        bytes calldata _exchangeData
+    ) external returns (bytes32 cdpId);
+
     function closeCdp(
+        bytes32 _cdpId,
+        PositionManagerPermit calldata _positionManagerPermit,
+        uint256 _stEthAmount,
+        bytes calldata _exchangeData
+    ) external;
+
+    function closeCdpForWstETH(
         bytes32 _cdpId,
         PositionManagerPermit calldata _positionManagerPermit,
         uint256 _stEthAmount,
@@ -51,6 +91,27 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
     function adjustCdp(
         bytes32 _cdpId,
         AdjustCdpParams calldata params,
+        PositionManagerPermit calldata _positionManagerPermit,
+        bytes calldata _exchangeData
+    ) external;
+
+    function adjustCdpWithEth(
+        bytes32 _cdpId,
+        AdjustCdpParams memory params,
+        PositionManagerPermit calldata _positionManagerPermit,
+        bytes calldata _exchangeData
+    ) external payable;
+        
+    function adjustCdpWithWstEth(
+        bytes32 _cdpId,
+        AdjustCdpParams memory params,
+        PositionManagerPermit calldata _positionManagerPermit,
+        bytes calldata _exchangeData
+    ) external;
+
+    function adjustCdpWithWrappedEth(
+        bytes32 _cdpId,
+        AdjustCdpParams memory params,
         PositionManagerPermit calldata _positionManagerPermit,
         bytes calldata _exchangeData
     ) external;

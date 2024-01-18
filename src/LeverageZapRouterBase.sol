@@ -17,8 +17,8 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
 
     address internal immutable theOwner;
     IPriceFeed internal immutable priceFeed;
-    address internal immutable dex;
-
+    address internal immutable dex; 
+    
     constructor(
         IEbtcLeverageZapRouter.DeploymentParams memory params
     )

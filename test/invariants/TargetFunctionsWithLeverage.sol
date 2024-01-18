@@ -315,16 +315,16 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 IEbtcLeverageZapRouter.adjustCdp.selector,
                 _cdpId,
                 IEbtcLeverageZapRouter.AdjustCdpParams({
-                    _flashLoanAmount: _debtToCollateral(_debtChange),
-                    _debtChange: _debtChange,
-                    _isDebtIncrease: true,
-                    _upperHint: bytes32(0),
-                    _lowerHint: bytes32(0),
-                    _stEthBalanceChange: collValue,
-                    _isStEthBalanceIncrease: true,
-                    _stEthMarginBalance: _marginChange,
-                    _isStEthMarginIncrease: true,
-                    _useWstETHForDecrease: false
+                    flashLoanAmount: _debtToCollateral(_debtChange),
+                    debtChange: _debtChange,
+                    isDebtIncrease: true,
+                    upperHint: bytes32(0),
+                    lowerHint: bytes32(0),
+                    stEthBalanceChange: collValue,
+                    isStEthBalanceIncrease: true,
+                    stEthMarginBalance: _marginChange,
+                    isStEthMarginIncrease: true,
+                    useWstETHForDecrease: false
                 }),
                 pmPermit,
                 abi.encodeWithSelector(
@@ -357,16 +357,16 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 IEbtcLeverageZapRouter.adjustCdp.selector,
                 _cdpId,
                 IEbtcLeverageZapRouter.AdjustCdpParams({
-                    _flashLoanAmount: _debtChange,
-                    _debtChange: _debtChange,
-                    _isDebtIncrease: false,
-                    _upperHint: bytes32(0),
-                    _lowerHint: bytes32(0),
-                    _stEthBalanceChange: collValue,
-                    _isStEthBalanceIncrease: false,
-                    _stEthMarginBalance: _marginChange,
-                    _isStEthMarginIncrease: false,
-                    _useWstETHForDecrease: false
+                    flashLoanAmount: _debtChange,
+                    debtChange: _debtChange,
+                    isDebtIncrease: false,
+                    upperHint: bytes32(0),
+                    lowerHint: bytes32(0),
+                    stEthBalanceChange: collValue,
+                    isStEthBalanceIncrease: false,
+                    stEthMarginBalance: _marginChange,
+                    isStEthMarginIncrease: false,
+                    useWstETHForDecrease: false
                 }),
                 pmPermit,
                 abi.encodeWithSelector(
