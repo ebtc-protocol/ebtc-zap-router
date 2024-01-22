@@ -11,8 +11,8 @@ interface IEbtcZapRouterBase {
 
     enum EthVariantZapOperationType {
         OpenCdp,
-        AdjustCdp,
-        CloseCdp
+        CloseCdp,
+        AdjustCdp
     }
 
     event ZapOperationEthVariant(
