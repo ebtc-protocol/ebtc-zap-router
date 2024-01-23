@@ -10,15 +10,14 @@ import {IEbtcLeverageZapRouter} from "./interface/IEbtcLeverageZapRouter.sol";
 import {ZapRouterBase} from "./ZapRouterBase.sol";
 import {IStETH} from "./interface/IStETH.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
-import "forge-std/console2.sol";
 
 abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, ReentrancyGuard {
     uint256 internal constant PRECISION = 1e18;
 
     address internal immutable theOwner;
     IPriceFeed internal immutable priceFeed;
-    address internal immutable dex; 
-    
+    address internal immutable dex;
+
     constructor(
         IEbtcLeverageZapRouter.DeploymentParams memory params
     )
@@ -59,8 +58,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
             ebtcToken.transfer(msg.sender, ebtcBal);
         }
 
-        console2.log("collateralBal", collateralBal);
-
         if (collateralBal > 0) {
             stETH.transferShares(msg.sender, collateralBal);
         }
@@ -72,7 +69,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
     }
 
     function _adjustCdpOperation(
-        bytes32 _cdpId, 
+        bytes32 _cdpId,
         FlashLoanType _flType,
         uint256 _flAmount,
         uint256 _marginIncrease,
@@ -89,9 +86,13 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         op.OperationData = abi.encode(_cdp);
 
         if (_cdp._isDebtIncrease) {
-            op.swapsAfter =_getSwapOperations(address(ebtcToken), _cdp._EBTCChange, _exchangeData);
+            op.swapsAfter = _getSwapOperations(address(ebtcToken), _cdp._EBTCChange, _exchangeData);
         } else {
-            op.swapsAfter =_getSwapOperations(address(stETH), _cdp._stEthBalanceDecrease, _exchangeData);
+            op.swapsAfter = _getSwapOperations(
+                address(stETH),
+                _cdp._stEthBalanceDecrease,
+                _exchangeData
+            );
         }
 
         _doOperation(
@@ -99,12 +100,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
             _flAmount,
             op,
             PostOperationCheck.cdpStats,
-            _getPostCheckParams(
-                _cdpId,
-                newDebt,
-                newColl,
-                ICdpManagerData.Status.active
-            ),
+            _getPostCheckParams(_cdpId, newDebt, newColl, ICdpManagerData.Status.active),
             _cdpId
         );
 
@@ -219,14 +215,19 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
     function _permitPositionManagerApproval(
         IEbtcLeverageZapRouter.PositionManagerPermit calldata _positionManagerPermit
     ) internal {
-        borrowerOperations.permitPositionManagerApproval(
-            msg.sender,
-            address(this),
-            IPositionManagers.PositionManagerApproval.OneTime,
-            _positionManagerPermit.deadline,
-            _positionManagerPermit.v,
-            _positionManagerPermit.r,
-            _positionManagerPermit.s
-        );
+        try
+            borrowerOperations.permitPositionManagerApproval(
+                msg.sender,
+                address(this),
+                IPositionManagers.PositionManagerApproval.OneTime,
+                _positionManagerPermit.deadline,
+                _positionManagerPermit.v,
+                _positionManagerPermit.r,
+                _positionManagerPermit.s
+            )
+        {} catch {
+            /// @notice adding try...catch around to mitigate potential permit front-running
+            /// see: https://www.trust-security.xyz/post/permission-denied
+        }
     }
 }

@@ -24,6 +24,9 @@ contract UniswapV3CollAdapter is IV3SwapRouter {
     ) external payable returns (uint256 amountOut) {
         address tokenIn = params.tokenIn;
         address tokenOut = params.tokenOut;
+        address recipient = params.recipient;
+
+        params.recipient = address(this);
 
         require(tokenIn != tokenOut);
 
@@ -41,9 +44,13 @@ contract UniswapV3CollAdapter is IV3SwapRouter {
             params.tokenOut = address(wstETH);
             params.amountOutMinimum = wstETH.getWstETHByStETH(params.amountOutMinimum);
         }
+
+        IERC20(params.tokenIn).approve(address(UNISWAP_ROUTER), params.amountIn);
         
         // amountOut = wstETH if tokenOut is stETH
         amountOut = UNISWAP_ROUTER.exactInputSingle(params);
+
+        IERC20(params.tokenIn).approve(address(UNISWAP_ROUTER), 0);
 
         if (tokenOut == address(stETH)) {
             uint256 stEthAmountBefore = IERC20(address(stETH)).balanceOf(address(this));
@@ -53,7 +60,7 @@ contract UniswapV3CollAdapter is IV3SwapRouter {
             amountOut = stEthAmountAfter - stEthAmountBefore;
         }
 
-        IERC20(tokenOut).transfer(msg.sender, amountOut);
+        IERC20(tokenOut).transfer(recipient, amountOut);
     }
 
     function exactOutputSingle(
@@ -62,6 +69,9 @@ contract UniswapV3CollAdapter is IV3SwapRouter {
         address tokenIn = params.tokenIn;
         address tokenOut = params.tokenOut;
         uint256 amountInMax = params.amountInMaximum;
+        address recipient = params.recipient;
+
+        params.recipient = address(this);
 
         require(tokenIn != tokenOut);
         
@@ -80,7 +90,11 @@ contract UniswapV3CollAdapter is IV3SwapRouter {
             params.amountOut = wstETH.getWstETHByStETH(params.amountOut);
         }
 
+        IERC20(params.tokenIn).approve(address(UNISWAP_ROUTER), params.amountInMaximum);
+
         amountIn = UNISWAP_ROUTER.exactOutputSingle(params);
+
+        IERC20(params.tokenIn).approve(address(UNISWAP_ROUTER), 0);
 
         if (amountIn < params.amountInMaximum) {
             uint256 refundAmount = params.amountInMaximum - amountIn;
@@ -105,6 +119,6 @@ contract UniswapV3CollAdapter is IV3SwapRouter {
             params.amountOut = stEthAmountAfter - stEthAmountBefore;
         }
 
-        IERC20(tokenOut).transfer(msg.sender, params.amountOut);
+        IERC20(tokenOut).transfer(recipient, params.amountOut);
     }
 }
