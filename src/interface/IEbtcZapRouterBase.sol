@@ -21,6 +21,7 @@ interface IEbtcZapRouterBase {
         bool isCollateralIncrease,
         address indexed collateralToken,
         uint256 collateralTokenDelta,
-        uint256 stEthDelta
+        uint256 stEthDelta,
+        address cdpOwner
     );
 }
