@@ -3,8 +3,7 @@ pragma solidity ^0.8.17;
 
 import {ICdpManagerData} from "@ebtc/contracts/interfaces/ICdpManagerData.sol";
 import {ICdpManager} from "@ebtc/contracts/interfaces/ICdpManager.sol";
-import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
-import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
+import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {SafeERC20} from "@ebtc/contracts/Dependencies/SafeERC20.sol";
 import {ZapRouterBase} from "./ZapRouterBase.sol";
@@ -417,15 +416,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
             "EbtcZapRouter: not enough collateral for open!"
         );
 
-        borrowerOperations.permitPositionManagerApproval(
-            msg.sender,
-            address(this),
-            IPositionManagers.PositionManagerApproval.OneTime,
-            _positionManagerPermit.deadline,
-            _positionManagerPermit.v,
-            _positionManagerPermit.r,
-            _positionManagerPermit.s
-        );
+        _permitPositionManagerApproval(borrowerOperations, _positionManagerPermit);
 
         cdpId = borrowerOperations.openCdpFor(
             _debt,
@@ -452,15 +443,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         uint256 _debt = ICdpManagerData(address(cdpManager)).getSyncedCdpDebt(_cdpId);
         ebtc.transferFrom(msg.sender, address(this), _debt);
 
-        borrowerOperations.permitPositionManagerApproval(
-            msg.sender,
-            address(this),
-            IPositionManagers.PositionManagerApproval.OneTime,
-            _positionManagerPermit.deadline,
-            _positionManagerPermit.v,
-            _positionManagerPermit.r,
-            _positionManagerPermit.s
-        );
+        _permitPositionManagerApproval(borrowerOperations, _positionManagerPermit);
 
         uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
         borrowerOperations.closeCdp(_cdpId);
@@ -488,15 +471,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
             "EbtcZapRouter: can't add and remove collateral at the same time!"
         );
 
-        borrowerOperations.permitPositionManagerApproval(
-            msg.sender,
-            address(this),
-            IPositionManagers.PositionManagerApproval.OneTime,
-            _positionManagerPermit.deadline,
-            _positionManagerPermit.v,
-            _positionManagerPermit.r,
-            _positionManagerPermit.s
-        );
+        _permitPositionManagerApproval(borrowerOperations, _positionManagerPermit);
 
         // for debt decrease
         if (!isDebtIncrease && _debtChange > 0) {

@@ -6,8 +6,7 @@ import {TargetContractSetup} from "@ebtc/contracts/TestContracts/invariants/Targ
 import {CollateralTokenTester} from "@ebtc/contracts/TestContracts/CollateralTokenTester.sol";
 import {Mock1Inch} from "@ebtc/contracts/TestContracts/Mock1Inch.sol";
 import {ICdpManager} from "@ebtc/contracts/interfaces/ICdpManager.sol";
-import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
-import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
+import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {WETH9} from "@ebtc/contracts/TestContracts/WETH9.sol";
 import {IStETH} from "../../src/interface/IStETH.sol";

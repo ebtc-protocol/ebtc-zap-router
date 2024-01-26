@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {IPositionManagers} from "@ebtc/contracts/Interfaces/IBorrowerOperations.sol";
 import {IPriceFeed} from "@ebtc/contracts/Interfaces/IPriceFeed.sol";
 import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
-import {LeverageMacroBase} from "@ebtc/contracts/LeverageMacroBase.sol";
+import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {IEbtcZapRouterBase} from "./interface/IEbtcZapRouterBase.sol";
 import {IWrappedETH} from "./interface/IWrappedETH.sol";
@@ -103,5 +102,25 @@ abstract contract ZapRouterBase is IEbtcZapRouterBase {
         stEth.transferFrom(msg.sender, address(this), _initialStETH);
         uint256 _deposit = stEth.balanceOf(address(this)) - _balBefore;
         return _deposit;
+    }
+
+    function _permitPositionManagerApproval(
+        IBorrowerOperations borrowerOperations,
+        PositionManagerPermit calldata _positionManagerPermit
+    ) internal {
+        try
+            borrowerOperations.permitPositionManagerApproval(
+                msg.sender,
+                address(this),
+                IPositionManagers.PositionManagerApproval.OneTime,
+                _positionManagerPermit.deadline,
+                _positionManagerPermit.v,
+                _positionManagerPermit.r,
+                _positionManagerPermit.s
+            )
+        {} catch {
+            /// @notice adding try...catch around to mitigate potential permit front-running
+            /// see: https://www.trust-security.xyz/post/permission-denied
+        }
     }
 }

@@ -211,23 +211,4 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
                 expectedStatus: _status
             });
     }
-
-    function _permitPositionManagerApproval(
-        IEbtcLeverageZapRouter.PositionManagerPermit calldata _positionManagerPermit
-    ) internal {
-        try
-            borrowerOperations.permitPositionManagerApproval(
-                msg.sender,
-                address(this),
-                IPositionManagers.PositionManagerApproval.OneTime,
-                _positionManagerPermit.deadline,
-                _positionManagerPermit.v,
-                _positionManagerPermit.r,
-                _positionManagerPermit.s
-            )
-        {} catch {
-            /// @notice adding try...catch around to mitigate potential permit front-running
-            /// see: https://www.trust-security.xyz/post/permission-denied
-        }
-    }
 }
