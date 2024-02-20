@@ -71,8 +71,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
     /// 9995 = 0.05%
     uint256 internal constant COLLATERAL_BUFFER = 9995;
 
-    function createLeveragedPosition() private returns (address, bytes32) {
-        address user = vm.addr(userPrivateKey);
+    function createLeveragedPosition() private returns (address user, bytes32 expectedCdpId) {
+        user = vm.addr(userPrivateKey);
 
         _dealCollateralAndPrepForUse(user);
 
@@ -82,7 +82,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         collateral.approve(address(leverageZapRouter), type(uint256).max);
 
-        bytes32 expectedCdpId = sortedCdps.toCdpId(user, block.number, sortedCdps.nextCdpNonce());
+        expectedCdpId = sortedCdps.toCdpId(user, block.number, sortedCdps.nextCdpNonce());
 
         uint256 _debt = 1e18;
         uint256 flAmount = _debtToCollateral(_debt);
@@ -90,28 +90,43 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         // Get before balances
         assertEq(
-            leverageZapRouter.openCdp(
-                _debt, // Debt amount
-                bytes32(0),
-                bytes32(0),
-                flAmount,
-                marginAmount, // Margin amount
-                (flAmount + marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
-                pmPermit,
-                abi.encodeWithSelector(
-                    mockDex.swap.selector,
-                    address(eBTCToken),
-                    address(collateral),
-                    _debt // Debt amount
-                )
-            ),
+            _openTestCdp(_debt, flAmount, marginAmount, pmPermit),
             expectedCdpId,
             "CDP ID should match expected value"
         );
 
         vm.stopPrank();
+    }
 
-        return (user, expectedCdpId);
+    function _openTestCdp(
+        uint256 _debt, 
+        uint256 _flAmount, 
+        uint256 _marginAmount,
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit
+    ) private returns (bytes32) {
+        return leverageZapRouter.openCdp(
+            _debt, // Debt amount
+            bytes32(0),
+            bytes32(0),
+            _flAmount,
+            _marginAmount, // Margin amount
+            (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
+            pmPermit,
+            _getOpenCdpTradeData(_debt)
+        );
+    }
+
+    function _getOpenCdpTradeData(uint256 _debt) private returns (IEbtcLeverageZapRouter.TradeData memory) {
+        return IEbtcLeverageZapRouter.TradeData({
+            performSwapChecks: false,
+            expectedMinOut: 0,
+            exchangeData: abi.encodeWithSelector(
+                mockDex.swap.selector,
+                address(eBTCToken),
+                address(collateral),
+                _debt // Debt amount
+            )
+        });
     }
 
     function test_ZapOpenCdp_WithStEth_LowLeverage() public {
@@ -171,12 +186,16 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             cdpId,
             pmPermit,
             (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION, 
-            abi.encodeWithSelector(
-                mockDex.swapExactOut.selector,
-                address(collateral),
-                address(eBTCToken),
-                cdpInfo.debt + flashFee
-            )
+            IEbtcLeverageZapRouter.TradeData({
+                performSwapChecks: false,
+                expectedMinOut: 0,
+                exchangeData: abi.encodeWithSelector(
+                    mockDex.swapExactOut.selector,
+                    address(collateral),
+                    address(eBTCToken),
+                    cdpInfo.debt + flashFee
+                )
+            })
         );
 
         vm.stopPrank();
@@ -213,12 +232,16 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 useWstETHForDecrease: false
             }), 
             pmPermit, 
-            abi.encodeWithSelector(
-                mockDex.swap.selector,
-                address(eBTCToken),
-                address(collateral),
-                debtChange // Debt amount
-            )
+            IEbtcLeverageZapRouter.TradeData({
+                performSwapChecks: false,
+                expectedMinOut: 0,
+                exchangeData: abi.encodeWithSelector(
+                    mockDex.swap.selector,
+                    address(eBTCToken),
+                    address(collateral),
+                    debtChange // Debt amount
+                )
+            })
         );
 
         (uint256 debtAfter, uint256 collAfter) = cdpManager.getSyncedDebtAndCollShares(cdpId);
@@ -268,13 +291,17 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 isStEthMarginIncrease: false,
                 useWstETHForDecrease: false
             }), 
-            pmPermit, 
-            abi.encodeWithSelector(
-                mockDex.swap.selector,
-                address(collateral),
-                address(eBTCToken),
-                collValue // Debt amount
-            )
+            pmPermit,
+            IEbtcLeverageZapRouter.TradeData({
+                performSwapChecks: false,
+                expectedMinOut: 0,
+                exchangeData: abi.encodeWithSelector(
+                    mockDex.swap.selector,
+                    address(collateral),
+                    address(eBTCToken),
+                    collValue // Debt amount
+                )
+            }) 
         );
 
         (uint256 debtAfter, uint256 collAfter) = cdpManager.getSyncedDebtAndCollShares(cdpId);

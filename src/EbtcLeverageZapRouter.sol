@@ -19,7 +19,7 @@ interface IMinChangeGetter {
     function MIN_CHANGE() external view returns (uint256);
 }
 
-contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter {
+contract EbtcLeverageZapRouter is LeverageZapRouterBase {
     using SafeERC20 for IERC20;
 
     uint256 public immutable MIN_CHANGE;
@@ -38,7 +38,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         uint256 _ethMarginBalance,
         uint256 _stEthDepositAmount,
         PositionManagerPermit calldata _positionManagerPermit,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) external payable returns (bytes32 cdpId) {
         uint256 _collVal = _convertRawEthToStETH(_ethMarginBalance);
 
@@ -50,7 +50,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
             _collVal,
             _stEthDepositAmount,
             _positionManagerPermit,
-            _exchangeData
+            _tradeData
         );
 
         emit ZapOperationEthVariant(
@@ -72,7 +72,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         uint256 _wstEthMarginBalance,
         uint256 _stEthDepositAmount,
         PositionManagerPermit calldata _positionManagerPermit,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _convertWstEthToStETH(_wstEthMarginBalance);
 
@@ -84,7 +84,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
             _collVal,
             _stEthDepositAmount,
             _positionManagerPermit,
-            _exchangeData
+            _tradeData
         );
 
         emit ZapOperationEthVariant(
@@ -106,7 +106,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         uint256 _wethMarginBalance,
         uint256 _stEthDepositAmount,
         PositionManagerPermit calldata _positionManagerPermit,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _convertWrappedEthToStETH(_wethMarginBalance);
 
@@ -118,7 +118,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
             _collVal,
             _stEthDepositAmount,
             _positionManagerPermit,
-            _exchangeData
+            _tradeData
         );
 
         emit ZapOperationEthVariant(
@@ -140,7 +140,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         uint256 _stEthMarginAmount,
         uint256 _stEthDepositAmount,
         PositionManagerPermit calldata _positionManagerPermit,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _transferInitialStETHFromCaller(_stEthMarginAmount);
 
@@ -152,7 +152,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
             0, // _stEthMarginAmount transferred above
             _stEthDepositAmount,
             _positionManagerPermit,
-            _exchangeData
+            _tradeData
         );
 
         emit ZapOperationEthVariant(
@@ -174,7 +174,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         uint256 _stEthMarginAmount,
         uint256 _stEthDepositAmount,
         PositionManagerPermit calldata _positionManagerPermit,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) internal nonReentrant returns (bytes32 cdpId) {
         _permitPositionManagerApproval(borrowerOperations, _positionManagerPermit);
 
@@ -193,7 +193,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
             _cdp: cdp,
             _flAmount: _stEthLoanAmount,
             _stEthBalance: _stEthMarginAmount,
-            _exchangeData: _exchangeData
+            _tradeData: _tradeData
         });
     }
 
@@ -201,18 +201,18 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         bytes32 _cdpId,
         PositionManagerPermit calldata _positionManagerPermit,
         uint256 _stEthAmount,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) external {
-        _closeCdp(_cdpId, _positionManagerPermit, _stEthAmount, false, _exchangeData);
+        _closeCdp(_cdpId, _positionManagerPermit, _stEthAmount, false, _tradeData);
     }
 
     function closeCdpForWstETH(
         bytes32 _cdpId,
         PositionManagerPermit calldata _positionManagerPermit,
         uint256 _stEthAmount,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) external {
-        _closeCdp(_cdpId, _positionManagerPermit, _stEthAmount, true, _exchangeData);
+        _closeCdp(_cdpId, _positionManagerPermit, _stEthAmount, true, _tradeData);
     }
 
     function _closeCdp(
@@ -220,7 +220,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         PositionManagerPermit calldata _positionManagerPermit,
         uint256 _stEthAmount,
         bool _useWstETH,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) internal nonReentrant {
         uint256 debt = ICdpManager(address(cdpManager)).getSyncedCdpDebt(_cdpId);
 
@@ -231,7 +231,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
             _cdpId: _cdpId,
             _debt: debt,
             _stEthAmount: _stEthAmount,
-            _exchangeData: _exchangeData
+            _tradeData: _tradeData
         });
         uint256 _zapStEthBalanceAfter = stEth.balanceOf(address(this));
         uint256 _stETHDiff = _zapStEthBalanceAfter - _zapStEthBalanceBefore;
@@ -267,52 +267,52 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
         bytes32 _cdpId,
         AdjustCdpParams memory params,
         PositionManagerPermit calldata _positionManagerPermit,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) external payable {
         if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
             params.stEthMarginBalance = _convertRawEthToStETH(params.stEthMarginBalance);
         }
-        _adjustCdp(_cdpId, params, _positionManagerPermit, _exchangeData);
+        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData);
     }
 
     function adjustCdpWithWstEth(
         bytes32 _cdpId,
         AdjustCdpParams memory params,
         PositionManagerPermit calldata _positionManagerPermit,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) external {
         if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
             params.stEthMarginBalance = _convertWstEthToStETH(params.stEthMarginBalance);
         }
-        _adjustCdp(_cdpId, params, _positionManagerPermit, _exchangeData);
+        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData);
     }
 
     function adjustCdpWithWrappedEth(
         bytes32 _cdpId,
         AdjustCdpParams memory params,
         PositionManagerPermit calldata _positionManagerPermit,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) external {
         if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
             params.stEthMarginBalance = _convertWrappedEthToStETH(params.stEthMarginBalance);
         }
-        _adjustCdp(_cdpId, params, _positionManagerPermit, _exchangeData);
+        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData);
     }
 
     function adjustCdp(
         bytes32 _cdpId,
         AdjustCdpParams calldata params,
         PositionManagerPermit calldata _positionManagerPermit,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) external {
-        _adjustCdp(_cdpId, params, _positionManagerPermit, _exchangeData);
+        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData);
     }
 
     function _adjustCdp(
         bytes32 _cdpId,
         AdjustCdpParams memory params,
         PositionManagerPermit calldata _positionManagerPermit,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) internal nonReentrant {
         _requireMinAdjustment(params.debtChange);
         _requireMinAdjustment(params.stEthBalanceChange);
@@ -351,7 +351,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase, IEbtcLeverageZapRouter 
             }),
             newDebt: params.isDebtIncrease ? debt + params.debtChange : debt - params.debtChange,
             newColl: 0,
-            _exchangeData: _exchangeData
+            _tradeData: _tradeData
         });
         uint256 _zapStEthBalanceDiff = stEth.balanceOf(address(this)) - _zapStEthBalanceBefore;
 
