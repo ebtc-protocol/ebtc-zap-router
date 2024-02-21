@@ -112,14 +112,15 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             _marginAmount, // Margin amount
             (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
             pmPermit,
-            _getOpenCdpTradeData(_debt)
+            _getOpenCdpTradeData(_debt, _flAmount)
         );
     }
 
-    function _getOpenCdpTradeData(uint256 _debt) private returns (IEbtcLeverageZapRouter.TradeData memory) {
+    function _getOpenCdpTradeData(uint256 _debt, uint256 expectedMinOut) 
+        private returns (IEbtcLeverageZapRouter.TradeData memory) {
         return IEbtcLeverageZapRouter.TradeData({
-            performSwapChecks: false,
-            expectedMinOut: 0,
+            performSwapChecks: true,
+            expectedMinOut: expectedMinOut,
             exchangeData: abi.encodeWithSelector(
                 mockDex.swap.selector,
                 address(eBTCToken),
@@ -187,7 +188,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             pmPermit,
             (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION, 
             IEbtcLeverageZapRouter.TradeData({
-                performSwapChecks: false,
+                performSwapChecks: true,
                 expectedMinOut: 0,
                 exchangeData: abi.encodeWithSelector(
                     mockDex.swapExactOut.selector,
