@@ -461,15 +461,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
             "EbtcZapRouter: not enough collateral for open!"
         );
 
-        borrowerOperations.permitPositionManagerApproval(
-            msg.sender,
-            address(this),
-            IPositionManagers.PositionManagerApproval.OneTime,
-            _positionManagerPermit.deadline,
-            _positionManagerPermit.v,
-            _positionManagerPermit.r,
-            _positionManagerPermit.s
-        );
+        _permitPositionManagerApproval(_positionManagerPermit);
 
         cdpId = borrowerOperations.openCdpFor(
             _debt,
@@ -501,15 +493,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         );
         ebtc.transferFrom(msg.sender, address(this), _debt);
 
-        borrowerOperations.permitPositionManagerApproval(
-            msg.sender,
-            address(this),
-            IPositionManagers.PositionManagerApproval.OneTime,
-            _positionManagerPermit.deadline,
-            _positionManagerPermit.v,
-            _positionManagerPermit.r,
-            _positionManagerPermit.s
-        );
+        _permitPositionManagerApproval(_positionManagerPermit);
 
         uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
         borrowerOperations.closeCdp(_cdpId);
@@ -575,15 +559,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
             "EbtcZapRouter: can't add and remove collateral at the same time!"
         );
 
-        borrowerOperations.permitPositionManagerApproval(
-            msg.sender,
-            address(this),
-            IPositionManagers.PositionManagerApproval.OneTime,
-            _positionManagerPermit.deadline,
-            _positionManagerPermit.v,
-            _positionManagerPermit.r,
-            _positionManagerPermit.s
-        );
+        _permitPositionManagerApproval(_positionManagerPermit);
 
         // for debt decrease
         if (!isDebtIncrease && _debtChange > 0) {
@@ -677,6 +653,25 @@ contract EbtcZapRouter is IEbtcZapRouter {
             _stETHBalBefore;
 
         return _stETHReiceived;
+    }
+
+    function _permitPositionManagerApproval(
+        PositionManagerPermit calldata _positionManagerPermit
+    ) internal {
+        try
+            borrowerOperations.permitPositionManagerApproval(
+                msg.sender,
+                address(this),
+                IPositionManagers.PositionManagerApproval.OneTime,
+                _positionManagerPermit.deadline,
+                _positionManagerPermit.v,
+                _positionManagerPermit.r,
+                _positionManagerPermit.s
+            )
+        {} catch {
+            /// @notice adding try...catch around to mitigate potential permit front-running
+            /// see: https://www.trust-security.xyz/post/permission-denied
+        }
     }
 
     function _getOwnerAddress(bytes32 cdpId) internal pure returns (address) {
