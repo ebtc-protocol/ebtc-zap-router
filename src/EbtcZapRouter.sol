@@ -160,7 +160,10 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
     /// @dev Note plain collateral(stETH) is returned no matter whatever asset is zapped in
     /// @param _cdpId The CdpId on which this operation is operated
     /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
-    function closeCdp(bytes32 _cdpId, PositionManagerPermit calldata _positionManagerPermit) external {
+    function closeCdp(
+        bytes32 _cdpId,
+        PositionManagerPermit calldata _positionManagerPermit
+    ) external {
         _closeCdpWithPermit(_cdpId, false, _positionManagerPermit);
     }
 
