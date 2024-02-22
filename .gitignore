@@ -19,4 +19,10 @@ docs/
 # Dotenv file
 .env
 
+<<<<<<< Updated upstream
 crytic-export/
+=======
+node_modules/
+temp/
+
+>>>>>>> Stashed changes
