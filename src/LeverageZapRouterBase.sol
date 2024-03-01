@@ -11,7 +11,7 @@ import {ZapRouterBase} from "./ZapRouterBase.sol";
 import {IStETH} from "./interface/IStETH.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 
-abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, ReentrancyGuard {
+abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, ReentrancyGuard, IEbtcLeverageZapRouter {
     uint256 internal constant PRECISION = 1e18;
 
     address internal immutable theOwner;
@@ -76,7 +76,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         AdjustCdpOperation memory _cdp,
         uint256 newDebt,
         uint256 newColl,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) internal {
         LeverageMacroOperation memory op;
 
@@ -86,12 +86,18 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         op.OperationData = abi.encode(_cdp);
 
         if (_cdp._isDebtIncrease) {
-            op.swapsAfter = _getSwapOperations(address(ebtcToken), _cdp._EBTCChange, _exchangeData);
+            op.swapsAfter = _getSwapOperations(
+                address(ebtcToken), 
+                address(stETH),
+                _cdp._EBTCChange, 
+                _tradeData
+            );
         } else {
             op.swapsAfter = _getSwapOperations(
                 address(stETH),
+                address(ebtcToken),
                 _cdp._stEthBalanceDecrease,
-                _exchangeData
+                _tradeData
             );
         }
 
@@ -113,7 +119,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         OpenCdpForOperation memory _cdp,
         uint256 _flAmount,
         uint256 _stEthBalance,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) internal {
         LeverageMacroOperation memory op;
 
@@ -121,7 +127,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         op.amountToTransferIn = _stEthBalance;
         op.operationType = OperationType.OpenCdpForOperation;
         op.OperationData = abi.encode(_cdp);
-        op.swapsAfter = _getSwapOperations(address(ebtcToken), _cdp.eBTCToMint, _exchangeData);
+        op.swapsAfter = _getSwapOperations(address(ebtcToken), address(stETH), _cdp.eBTCToMint, _tradeData);
 
         _doOperation(
             FlashLoanType.stETH,
@@ -145,7 +151,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         bytes32 _cdpId,
         uint256 _debt,
         uint256 _stEthAmount,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) internal {
         CloseCdpOperation memory cdp;
 
@@ -157,10 +163,9 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         op.OperationData = abi.encode(cdp);
         op.swapsAfter = _getSwapOperations(
             address(stETH),
-            // This is an exact out trade, so we specify the max collateral
-            // amount the DEX is allowed to pull
+            address(ebtcToken),
             _stEthAmount,
-            _exchangeData
+            _tradeData
         );
 
         _doOperation(
@@ -177,21 +182,30 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
     }
 
     function _getSwapOperations(
-        address _tokenForSwap,
+        address _tokenIn,
+        address _tokenOut,
         uint256 _exactApproveAmount,
-        bytes calldata _exchangeData
+        TradeData calldata _tradeData
     ) internal view returns (SwapOperation[] memory swaps) {
         swaps = new SwapOperation[](1);
 
-        swaps[0].tokenForSwap = _tokenForSwap;
+        swaps[0].tokenForSwap = _tokenIn;
         // TODO: approve target maybe different
         swaps[0].addressForApprove = dex;
         swaps[0].exactApproveAmount = _exactApproveAmount;
         swaps[0].addressForSwap = dex;
-        // TODO: exchange data needs to be passed in for aggregators (i.e. ZeroEx)
-        // this trade can be generated for now
-        swaps[0].calldataForSwap = _exchangeData;
-        // op.swapChecks TODO: add proper checks
+        swaps[0].calldataForSwap = _tradeData.exchangeData;
+        if (_tradeData.performSwapChecks) {
+            swaps[0].swapChecks = _getSwapChecks(_tokenOut, _tradeData.expectedMinOut);            
+        }
+    }
+
+    function _getSwapChecks(address tokenToCheck, uint256 expectedMinOut) 
+        internal view returns (SwapCheck[] memory checks) {
+        checks = new SwapCheck[](1);
+
+        checks[0].tokenToCheck = tokenToCheck;
+        checks[0].expectedMinOut = expectedMinOut;
     }
 
     function _getPostCheckParams(
