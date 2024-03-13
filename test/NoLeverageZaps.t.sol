@@ -337,6 +337,52 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         _ensureZapInvariants();
     }
 
+    ///@dev test case: increase collateral with raw native Ether for CDP
+    function test_ZapAddCollWithStEth_NoLeverage_NoFlippening() public {
+        address user = TEST_FIXED_USER;
+
+        // open a CDP
+        test_ZapOpenCdp_WithStEth_NoLeverage_NoFlippening();
+
+        bytes32 _cdpIdToAddColl = sortedCdps.cdpOfOwnerByIndex(user, 0);
+        uint256 _collShareBefore = cdpManager.getSyncedCdpCollShares(
+            _cdpIdToAddColl
+        );
+
+        vm.startPrank(user);
+        uint256 _addedColl = 2 ether;
+
+        // Generate signature to one-time approve zap
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+        zapRouter.adjustCdp(
+            _cdpIdToAddColl,
+            0,
+            0,
+            false,
+            bytes32(0),
+            bytes32(0),
+            _addedColl,
+            false,
+            pmPermit
+        );
+        uint256 _collShareAfter = cdpManager.getSyncedCdpCollShares(
+            _cdpIdToAddColl
+        );
+        assertEq(
+            _collShareBefore + collateral.getSharesByPooledEth(_addedColl),
+            _collShareAfter,
+            "Cdp collateral should be added as expected at this moment"
+        );
+
+        _checkZapStatusAfterOperation(user);
+
+        vm.stopPrank();
+
+        _ensureSystemInvariants();
+        _ensureZapInvariants();
+    }
+
     ///@dev test case: withdraw collateral from the CDP
     function test_ZapReduceColl_NoLeverage_NoFlippening() public {
         address user = TEST_FIXED_USER;

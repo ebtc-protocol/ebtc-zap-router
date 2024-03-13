@@ -388,13 +388,14 @@ contract EbtcZapRouter is IEbtcZapRouter {
         PositionManagerPermit calldata _positionManagerPermit
     ) external {
         if (_collBalanceIncrease > 0) {
+            uint256 _collVal = _transferInitialStETHFromCaller(_collBalanceIncrease);
             emit ZapOperationEthVariant(
                 _cdpId, 
                 EthVariantZapOperationType.AdjustCdp, 
-                false, 
+                true, 
                 address(stEth), 
                 _collBalanceIncrease, 
-                _collBalanceIncrease,
+                _collVal,
                 msg.sender
             );
         }
