@@ -506,6 +506,64 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         _ensureZapInvariants();
     }
 
+    ///@dev test case: adjust CDP with only debt repayment
+    function test_ZapAdjustCDPRepayOnly_NoLeverage_NoFlippening()
+        public
+    {
+        address user = TEST_FIXED_USER;
+
+        // open a CDP
+        test_ZapOpenCdp_WithRawEth_NoLeverage_NoFlippening();
+
+        bytes32 _cdpIdToAdjust = sortedCdps.cdpOfOwnerByIndex(user, 0);
+        uint256 _collShareBefore = cdpManager.getSyncedCdpCollShares(
+            _cdpIdToAdjust
+        );
+        uint256 _debtBefore = cdpManager.getSyncedCdpDebt(_cdpIdToAdjust);
+
+        vm.startPrank(user);
+        uint256 _stETHBalBefore = collateral.balanceOf(user);
+        uint256 _changeDebt = _debtBefore / 10;
+
+        IERC20(address(eBTCToken)).approve(
+            address(zapRouter),
+            type(uint256).max
+        );
+
+        // Generate signature to one-time approve zap
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+        zapRouter.adjustCdpWithEth(
+            _cdpIdToAdjust,
+            0,
+            _changeDebt,
+            false,
+            bytes32(0),
+            bytes32(0),
+            0,
+            false,
+            pmPermit
+        );
+
+        uint256 _stETHBalAfter = collateral.balanceOf(user);
+        uint256 _collShareAfter = cdpManager.getSyncedCdpCollShares(
+            _cdpIdToAdjust
+        );
+        uint256 _debtAfterRepay = cdpManager.getSyncedCdpDebt(_cdpIdToAdjust);
+        assertEq(
+            _debtBefore - _changeDebt,
+            _debtAfterRepay,
+            "Debt should be repaid for CDP as expected at this moment"
+        );
+
+        _checkZapStatusAfterOperation(user);
+
+        vm.stopPrank();
+
+        _ensureSystemInvariants();
+        _ensureZapInvariants();
+    }
+
     ///@dev test case: adjust CDP with collateral withdrawn in wrapped version(WstETH) and debt repaid
     function test_ZapAdjustCDPWithdrawWrappedCollAndRepay_NoLeverage_NoFlippening()
         public

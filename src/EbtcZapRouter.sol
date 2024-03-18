@@ -237,6 +237,30 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bool _useWstETHForDecrease,
         PositionManagerPermit calldata _positionManagerPermit
     ) external payable {
+        _adjustCdpWithEth(
+            _cdpId,
+            _collBalanceDecrease,
+            _debtChange,
+            _isDebtIncrease,
+            _upperHint,
+            _lowerHint,
+            _ethBalanceIncrease,
+            _useWstETHForDecrease,
+            _positionManagerPermit
+        );
+    }
+
+    function _adjustCdpWithEth(
+        bytes32 _cdpId,
+        uint256 _collBalanceDecrease,
+        uint256 _debtChange,
+        bool _isDebtIncrease,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _ethBalanceIncrease,
+        bool _useWstETHForDecrease,
+        PositionManagerPermit calldata _positionManagerPermit
+    ) internal {
         uint256 _collBalanceIncrease = _ethBalanceIncrease;
         if (_ethBalanceIncrease > 0) {
             _collBalanceIncrease = _convertRawEthToStETH(_ethBalanceIncrease);
@@ -345,7 +369,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
             emit ZapOperationEthVariant(
                 _cdpId, 
                 EthVariantZapOperationType.AdjustCdp, 
-                false, 
+                true, 
                 address(wstEth), 
                 _wstEthBalanceIncrease, 
                 _collBalanceIncrease,
@@ -424,17 +448,15 @@ contract EbtcZapRouter is IEbtcZapRouter {
         bytes32 _lowerHint,
         uint256 _ethBalanceIncrease,
         PositionManagerPermit calldata _positionManagerPermit
-    ) external payable {
-        uint256 _stEthToAdd = _convertRawEthToStETH(_ethBalanceIncrease);
-
-        _adjustCdpWithPermit(
+    ) external payable {        
+        _adjustCdpWithEth(
             _cdpId,
             0,
             0,
             false,
             _upperHint,
             _lowerHint,
-            _stEthToAdd,
+            _ethBalanceIncrease,
             false,
             _positionManagerPermit
         );
@@ -556,7 +578,8 @@ contract EbtcZapRouter is IEbtcZapRouter {
         );
         require(
             (_collBalanceDecrease > 0 && _collBalanceIncrease == 0) ||
-                (_collBalanceIncrease > 0 && _collBalanceDecrease == 0),
+                (_collBalanceIncrease > 0 && _collBalanceDecrease == 0) ||
+                (_collBalanceIncrease == 0 && _collBalanceDecrease == 0),
             "EbtcZapRouter: can't add and remove collateral at the same time!"
         );
 
