@@ -11,6 +11,7 @@ import {WstETH} from "../src/testContracts/WstETH.sol";
 import {IWstETH} from "../src/interface/IWstETH.sol";
 
 contract NoLeverageZaps is ZapRouterBaseInvariants {
+
     function setUp() public override {
         super.setUp();
     }
@@ -42,6 +43,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
 
         // Zap Open Cdp
         uint256 _cdpCntBefore = sortedCdps.cdpCountOf(user);
+
+        _before();
         zapRouter.openCdp(
             debt,
             bytes32(0),
@@ -49,6 +52,57 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             stEthBalance + 0.2 ether,
             pmPermit
         );
+        _after();
+
+        // Confirm Cdp opened for user
+        uint256 _cdpCntAfter = sortedCdps.cdpCountOf(user);
+        assertEq(_cdpCntAfter - _cdpCntBefore, 1, "User should have 1 new cdp");
+
+        _checkZapStatusAfterOperation(user);
+
+        vm.stopPrank();
+
+        _ensureSystemInvariants();
+        _ensureZapInvariants();
+    }
+
+    function test_ZapOpenCdp_WithStEthRoundingError_NoLeverage_NoFlippening() public {
+        address user = TEST_FIXED_USER;
+
+        _dealCollateralAndPrepForUse(user);
+
+        uint256 stEthBalance = FIXED_COLL_SIZE;
+
+        uint256 debt = _utils.calculateBorrowAmount(
+            stEthBalance,
+            priceFeedMock.fetchPrice(),
+            COLLATERAL_RATIO
+        );
+
+        collateral.setEthPerShare(0.99e18);
+
+        vm.startPrank(user);
+
+        // Generate signature to one-time approve zap
+        IEbtcZapRouter.PositionManagerPermit
+            memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+
+        collateral.approve(address(zapRouter), type(uint256).max);
+
+        // Get before balances
+
+        // Zap Open Cdp
+        uint256 _cdpCntBefore = sortedCdps.cdpCountOf(user);
+
+        _before();
+        zapRouter.openCdp(
+            debt,
+            bytes32(0),
+            bytes32(0),
+            stEthBalance,
+            pmPermit
+        );
+        _after();
 
         // Confirm Cdp opened for user
         uint256 _cdpCntAfter = sortedCdps.cdpCountOf(user);
@@ -87,6 +141,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         // Zap Open Cdp
         uint256 _cdpCntBefore = sortedCdps.cdpCountOf(user);
         uint256 _initialETH = stEthBalance + 0.2 ether;
+
+        _before();
         zapRouter.openCdpWithEth{value: _initialETH}(
             debt,
             bytes32(0),
@@ -94,6 +150,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             _initialETH,
             pmPermit
         );
+        _after();
 
         // Confirm Cdp opened for user
         uint256 _cdpCntAfter = sortedCdps.cdpCountOf(user);
@@ -131,6 +188,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         // Zap Open Cdp
         uint256 _cdpCntBefore = sortedCdps.cdpCountOf(user);
         IERC20(testWeth).approve(address(zapRouter), type(uint256).max);
+
+        _before();
         zapRouter.openCdpWithWrappedEth(
             debt,
             bytes32(0),
@@ -138,6 +197,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             _initialWETH,
             pmPermit
         );
+        _after();
 
         // Confirm Cdp opened for user
         uint256 _cdpCntAfter = sortedCdps.cdpCountOf(user);
@@ -175,6 +235,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         // Zap Open Cdp
         uint256 _cdpCntBefore = sortedCdps.cdpCountOf(user);
         IERC20(testWstEth).approve(address(zapRouter), type(uint256).max);
+
+        _before();
         zapRouter.openCdpWithWstEth(
             debt,
             bytes32(0),
@@ -182,6 +244,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             _initialWstETH,
             pmPermit
         );
+        _after();
 
         // Confirm Cdp opened for user
         uint256 _cdpCntAfter = sortedCdps.cdpCountOf(user);
@@ -224,7 +287,11 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         uint256 _cdpColl = cdpManager.getSyncedCdpCollShares(_cdpIdToClose) +
             cdpManager.getCdpLiquidatorRewardShares(_cdpIdToClose);
         uint256 _stETHValBefore = IERC20(address(collateral)).balanceOf(user);
+
+        _before();
         zapRouter.closeCdp(_cdpIdToClose, pmPermit);
+        _after();
+
         assertEq(
             cdpManager.getCdpStatus(_cdpIdToClose),
             2,
@@ -274,7 +341,11 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         uint256 _cdpColl = cdpManager.getSyncedCdpCollShares(_cdpIdToClose) +
             cdpManager.getCdpLiquidatorRewardShares(_cdpIdToClose);
         uint256 _wstETHValBefore = IERC20(address(testWstEth)).balanceOf(user);
+
+        _before();
         zapRouter.closeCdpForWstETH(_cdpIdToClose, pmPermit);
+        _after();
+
         assertEq(
             cdpManager.getCdpStatus(_cdpIdToClose),
             2,
@@ -313,6 +384,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         // Generate signature to one-time approve zap
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+
+        _before();
         zapRouter.addCollWithEth{value: _addedColl}(
             _cdpIdToAddColl,
             bytes32(0),
@@ -320,6 +393,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             _addedColl,
             pmPermit
         );
+        _after();
+
         uint256 _collShareAfter = cdpManager.getSyncedCdpCollShares(
             _cdpIdToAddColl
         );
@@ -355,6 +430,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         // Generate signature to one-time approve zap
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+
+        _before();
         zapRouter.adjustCdp(
             _cdpIdToAddColl,
             0,
@@ -366,6 +443,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             false,
             pmPermit
         );
+        _after();
+
         uint256 _collShareAfter = cdpManager.getSyncedCdpCollShares(
             _cdpIdToAddColl
         );
@@ -402,6 +481,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         // Generate signature to one-time approve zap
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+
+        _before();
         zapRouter.adjustCdp(
             _cdpIdToReduceColl,
             _reducedColl,
@@ -413,6 +494,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             false,
             pmPermit
         );
+        _after();
 
         uint256 _stETHBalAfter = collateral.balanceOf(user);
         uint256 _collShareAfter = cdpManager.getSyncedCdpCollShares(
@@ -465,6 +547,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         // Generate signature to one-time approve zap
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+
+        _before();
         zapRouter.adjustCdpWithEth(
             _cdpIdToAdjust,
             _changeColl,
@@ -476,6 +560,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             false,
             pmPermit
         );
+        _after();
 
         uint256 _stETHBalAfter = collateral.balanceOf(user);
         uint256 _collShareAfter = cdpManager.getSyncedCdpCollShares(
@@ -533,6 +618,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         // Generate signature to one-time approve zap
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+
+        _before();
         zapRouter.adjustCdpWithEth(
             _cdpIdToAdjust,
             0,
@@ -544,6 +631,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             false,
             pmPermit
         );
+        _after();
 
         uint256 _stETHBalAfter = collateral.balanceOf(user);
         uint256 _collShareAfter = cdpManager.getSyncedCdpCollShares(
@@ -592,6 +680,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         // Generate signature to one-time approve zap
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermit = _generateOneTimePermitFromFixedTestUser();
+
+        _before();
         zapRouter.adjustCdpWithEth(
             _cdpIdToAdjust,
             _changeColl,
@@ -603,6 +693,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             true,
             pmPermit
         );
+        _after();
 
         uint256 _wstETHBalAfter = IERC20(testWstEth).balanceOf(user);
         uint256 _collShareAfter = cdpManager.getSyncedCdpCollShares(
@@ -657,6 +748,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermit = _generateOneTimePermitFromFixedTestUser();
         uint256 _debtBalBeforeMint = IERC20(address(eBTCToken)).balanceOf(user);
+
+        _before();
         zapRouter.adjustCdpWithEth(
             _cdpIdToAdjust,
             _changeColl,
@@ -668,6 +761,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             false,
             pmPermit
         );
+        _after();
 
         uint256 _stETHBalAfter = collateral.balanceOf(user);
         uint256 _collShareAfter = cdpManager.getSyncedCdpCollShares(
@@ -728,6 +822,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermit = _generateOneTimePermitFromFixedTestUser();
         uint256 _debtBalBeforeMint = IERC20(address(eBTCToken)).balanceOf(user);
+
+        _before();
         zapRouter.adjustCdpWithEth(
             _cdpIdToAdjust,
             _changeColl,
@@ -739,6 +835,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             true,
             pmPermit
         );
+        _after();
 
         uint256 _wstETHBalAfter = IERC20(testWstEth).balanceOf(user);
         uint256 _collShareAfter = cdpManager.getSyncedCdpCollShares(
@@ -799,6 +896,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         uint256 _debtBalBeforeMint = IERC20(address(eBTCToken)).balanceOf(user);
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermitMint = _generateOneTimePermitFromFixedTestUser();
+
+        _before();
         zapRouter.adjustCdpWithEth{value: _changeColl}(
             _cdpIdToAdjust,
             0,
@@ -810,6 +909,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             false,
             pmPermitMint
         );
+        _after();
 
         uint256 _collShareAfterMint = cdpManager.getSyncedCdpCollShares(
             _cdpIdToAdjust
@@ -866,6 +966,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             memory pmPermitMint = _generateOneTimePermitFromFixedTestUser();
         vm.stopPrank();
 
+        _before();
+
         vm.expectRevert(
             "BorrowerOperations: An operation that would result in ICR < MCR is not permitted"
         );
@@ -881,6 +983,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             false,
             pmPermitMint
         );
+        _after();
 
         _checkZapStatusAfterOperation(user);
     }
@@ -915,9 +1018,12 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         uint256 _initialETH = stEthBalance + 0.2 ether;
         uint256 _extraDonation = 1234567890123;
 
+        _before();
+
         // require exact amout of raw Eth in openCDP
         vm.expectRevert("EbtcZapRouter: Incorrect ETH amount");
         vm.prank(user);
+
         zapRouter.openCdpWithEth{value: _initialETH + _extraDonation}(
             debt,
             bytes32(0),
@@ -925,6 +1031,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             _initialETH,
             pmPermit
         );
+        _after();
 
         // no receive() or fallback() cause transfer failure
         vm.prank(user);
@@ -962,6 +1069,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         uint256 _debtBalBeforeMint = IERC20(address(eBTCToken)).balanceOf(user);
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermitMint = _generateOneTimePermitFromFixedTestUser();
+        
+        _before();
         zapRouter.adjustCdpWithEth{value: _changeColl}(
             _cdpIdToAdjust,
             0,
@@ -973,6 +1082,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             false,
             pmPermitMint
         );
+        _after();
 
         uint256 _collShareAfterMint = cdpManager.getSyncedCdpCollShares(
             _cdpIdToAdjust
@@ -1038,6 +1148,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         uint256 _debtBalBeforeMint = IERC20(address(eBTCToken)).balanceOf(user);
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermitMint = _generateOneTimePermitFromFixedTestUser();
+
+        _before();
         zapRouter.adjustCdpWithWrappedEth(
             _cdpIdToAdjust,
             0,
@@ -1049,6 +1161,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             false,
             pmPermitMint
         );
+        _after();
 
         uint256 _collShareAfterMint = cdpManager.getSyncedCdpCollShares(
             _cdpIdToAdjust
@@ -1114,6 +1227,8 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
         uint256 _debtBalBeforeMint = IERC20(address(eBTCToken)).balanceOf(user);
         IEbtcZapRouter.PositionManagerPermit
             memory pmPermitMint = _generateOneTimePermitFromFixedTestUser();
+
+        _before();
         zapRouter.adjustCdpWithWstEth(
             _cdpIdToAdjust,
             0,
@@ -1125,6 +1240,7 @@ contract NoLeverageZaps is ZapRouterBaseInvariants {
             false,
             pmPermitMint
         );
+        _after();
 
         uint256 _collShareAfterMint = cdpManager.getSyncedCdpCollShares(
             _cdpIdToAdjust

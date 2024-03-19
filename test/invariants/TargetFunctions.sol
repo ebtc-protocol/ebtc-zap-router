@@ -201,6 +201,16 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         return pmPermit;
     }
 
+    function setEthPerShare(uint256 _newEthPerShare) public setup {
+        uint256 currentEthPerShare = collateral.getEthPerShare();
+        _newEthPerShare = between(
+            _newEthPerShare,
+            (currentEthPerShare * 1e18) / MAX_REBASE_PERCENT,
+            (currentEthPerShare * MAX_REBASE_PERCENT) / 1e18
+        );
+        collateral.setEthPerShare(_newEthPerShare);
+    }
+
     function openCdpWithEth(uint256 _debt, uint256 _ethBalance) public setup {
         _dealETH(zapActor);
 

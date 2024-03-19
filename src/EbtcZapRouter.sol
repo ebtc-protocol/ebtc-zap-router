@@ -12,11 +12,18 @@ import {IWrappedETH} from "./interface/IWrappedETH.sol";
 import {IEbtcZapRouter} from "./interface/IEbtcZapRouter.sol";
 import {IWstETH} from "./interface/IWstETH.sol";
 
+interface IMinChangeGetter {
+    function MIN_CHANGE() external view returns (uint256);
+}
+
 contract EbtcZapRouter is IEbtcZapRouter {
     using SafeERC20 for IERC20;
 
     address public constant NATIVE_ETH_ADDRESS =
         0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    uint256 public constant LIQUIDATOR_REWARD = 2e17;
+    uint256 public constant MIN_NET_STETH_BALANCE = 2e18;
+    uint256 public constant MAX_COLL_ROUNDING_ERROR = 2;
 
     IStETH public immutable stEth;
     IERC20 public immutable ebtc;
@@ -25,6 +32,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
     IBorrowerOperations public immutable borrowerOperations;
     ICdpManager public immutable cdpManager;
     address public immutable owner;
+    uint256 public immutable MIN_CHANGE;
 
     constructor(
         IERC20 _wstEth,
@@ -48,6 +56,8 @@ contract EbtcZapRouter is IEbtcZapRouter {
         wrappedEth.approve(address(wrappedEth), type(uint256).max);
         wstEth.approve(address(wstEth), type(uint256).max);
         stEth.approve(address(wstEth), type(uint256).max);
+
+        MIN_CHANGE = IMinChangeGetter(address(borrowerOperations)).MIN_CHANGE();
     }
 
     /// @dev This is to allow wrapped ETH related Zap
@@ -69,7 +79,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
         uint256 _collVal = _transferInitialStETHFromCaller(_stEthBalance);
 
         require(
-            _stEthBalance == _collVal,
+            _collVal >= _stEthBalance - MAX_COLL_ROUNDING_ERROR,
             "EbtcZapRouter: stETH conversion error"
         );
 
@@ -484,6 +494,9 @@ contract EbtcZapRouter is IEbtcZapRouter {
             "EbtcZapRouter: not enough collateral for open!"
         );
 
+        _requireZeroOrMinAdjustment(_debt);
+        _requireAtLeastMinNetStEthBalance(_stEthBalance - LIQUIDATOR_REWARD);
+
         _permitPositionManagerApproval(_positionManagerPermit);
 
         cdpId = borrowerOperations.openCdpFor(
@@ -582,6 +595,10 @@ contract EbtcZapRouter is IEbtcZapRouter {
                 (_collBalanceIncrease == 0 && _collBalanceDecrease == 0),
             "EbtcZapRouter: can't add and remove collateral at the same time!"
         );
+
+        _requireZeroOrMinAdjustment(_debtChange);
+        _requireZeroOrMinAdjustment(_collBalanceIncrease);
+        _requireZeroOrMinAdjustment(_collBalanceDecrease);
 
         _permitPositionManagerApproval(_positionManagerPermit);
 
@@ -701,5 +718,19 @@ contract EbtcZapRouter is IEbtcZapRouter {
     function _getOwnerAddress(bytes32 cdpId) internal pure returns (address) {
         uint256 _tmp = uint256(cdpId) >> 96;
         return address(uint160(_tmp));
+    }
+
+    function _requireZeroOrMinAdjustment(uint256 _change) internal view {
+        require(
+            _change == 0 || _change >= MIN_CHANGE,
+            "EbtcZapRouter: Debt or collateral change must be zero or above min"
+        );
+    }
+
+    function _requireAtLeastMinNetStEthBalance(uint256 _stEthBalance) internal pure {
+        require(
+            _stEthBalance >= MIN_NET_STETH_BALANCE,
+            "EbtcZapRouter: Cdp's net stEth balance must not fall below minimum"
+        );
     }
 }
