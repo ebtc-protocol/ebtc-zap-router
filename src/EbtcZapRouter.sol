@@ -23,7 +23,6 @@ contract EbtcZapRouter is IEbtcZapRouter {
         0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     uint256 public constant LIQUIDATOR_REWARD = 2e17;
     uint256 public constant MIN_NET_STETH_BALANCE = 2e18;
-    uint256 public constant MAX_COLL_ROUNDING_ERROR = 2;
 
     IStETH public immutable stEth;
     IERC20 public immutable ebtc;
@@ -77,11 +76,6 @@ contract EbtcZapRouter is IEbtcZapRouter {
         PositionManagerPermit calldata _positionManagerPermit
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _transferInitialStETHFromCaller(_stEthBalance);
-
-        require(
-            _collVal >= _stEthBalance - MAX_COLL_ROUNDING_ERROR,
-            "EbtcZapRouter: stETH conversion error"
-        );
 
         cdpId = _openCdpWithPermit(
             _debt,
@@ -596,6 +590,7 @@ contract EbtcZapRouter is IEbtcZapRouter {
             "EbtcZapRouter: can't add and remove collateral at the same time!"
         );
 
+        _requireNonZeroAdjustment(_collBalanceIncrease, _collBalanceDecrease, _debtChange);
         _requireZeroOrMinAdjustment(_debtChange);
         _requireZeroOrMinAdjustment(_collBalanceIncrease);
         _requireZeroOrMinAdjustment(_collBalanceDecrease);
@@ -731,6 +726,17 @@ contract EbtcZapRouter is IEbtcZapRouter {
         require(
             _stEthBalance >= MIN_NET_STETH_BALANCE,
             "EbtcZapRouter: Cdp's net stEth balance must not fall below minimum"
+        );
+    }
+
+    function _requireNonZeroAdjustment(
+        uint256 _stEthBalanceIncrease,
+        uint256 _stEthBalanceDecrease,
+        uint256 _debtChange
+    ) internal pure {
+        require(
+            _stEthBalanceIncrease > 0 || _stEthBalanceDecrease > 0 || _debtChange > 0,
+            "EbtcZapRouter: There must be either a collateral or debt change"
         );
     }
 }
