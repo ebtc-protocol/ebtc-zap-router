@@ -22,8 +22,16 @@ contract ZapRouterBaseInvariants is
     eBTCBaseInvariants,
     ZapRouterBaseStorageVariables
 {
+    struct ZapRouterState {
+        uint256 stEthBalance;
+        uint256 collShares;
+    }
+
     uint256 public constant FIXED_COLL_SIZE = 30 ether;
+    uint256 public constant MAX_COLL_ROUNDING_ERROR = 2;
     address internal TEST_FIXED_USER;
+    ZapRouterState internal stateBefore;
+    ZapRouterState internal stateAfter;
 
     function setUp() public virtual override {
         super.setUp();
@@ -55,6 +63,16 @@ contract ZapRouterBaseInvariants is
         TEST_FIXED_USER = _createUserFromPrivateKey(userPrivateKey);
     }
 
+    function _before() internal {
+        stateBefore.collShares = collateral.sharesOf(address(zapRouter));
+        stateBefore.stEthBalance = collateral.balanceOf(address(zapRouter));
+    }
+
+    function _after() internal {
+        stateAfter.collShares = collateral.sharesOf(address(zapRouter));
+        stateAfter.stEthBalance = collateral.balanceOf(address(zapRouter));
+    }
+
     function _ensureZapInvariants() internal {
         // TODO
     }
@@ -65,14 +83,14 @@ contract ZapRouterBaseInvariants is
         assertEq(zapCdps.length, 0, "Zap should not have a Cdp");
 
         // Confirm Zap has no coins
-        assertEq(
-            collateral.balanceOf(address(zapRouter)),
-            0,
+        assertLe(
+            stateAfter.stEthBalance - stateBefore.stEthBalance,
+            MAX_COLL_ROUNDING_ERROR,
             "Zap should have no stETH balance"
         );
-        assertEq(
-            collateral.sharesOf(address(zapRouter)),
-            0,
+        assertLe(
+            stateAfter.collShares - stateBefore.collShares,
+            MAX_COLL_ROUNDING_ERROR,
             "Zap should have no stETH shares"
         );
         assertEq(

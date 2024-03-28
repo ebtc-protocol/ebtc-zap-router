@@ -54,6 +54,16 @@ abstract contract TargetFunctionsBase is TargetContractSetup, ZapRouterPropertie
         }
     }
 
+    function setEthPerShare(uint256 _newEthPerShare) public setup {
+        uint256 currentEthPerShare = collateral.getEthPerShare();
+        _newEthPerShare = between(
+            _newEthPerShare,
+            (currentEthPerShare * 1e18) / MAX_REBASE_PERCENT,
+            (currentEthPerShare * MAX_REBASE_PERCENT) / 1e18
+        );
+        collateral.setEthPerShare(_newEthPerShare);
+    }
+    
     function _dealETH(ZapRouterActor actor, uint256 amount) internal {
         (bool success, ) = address(actor).call{value: amount}("");
         assert(success);

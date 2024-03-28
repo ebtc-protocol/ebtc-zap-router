@@ -12,6 +12,8 @@ import {IWstETH} from "./interface/IWstETH.sol";
 
 abstract contract ZapRouterBase is IEbtcZapRouterBase {
     address public constant NATIVE_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    uint256 public constant LIQUIDATOR_REWARD = 2e17;
+    uint256 public constant MIN_NET_STETH_BALANCE = 2e18;
 
     IERC20 public immutable wstEth;
     IStETH public immutable stEth;
