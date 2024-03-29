@@ -183,6 +183,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         uint256 _maxSlippage = 10050; // 0.5% slippage
 
+        assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.active));
+
         leverageZapRouter.closeCdp(
             cdpId,
             pmPermit,
@@ -200,6 +202,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         );
 
         vm.stopPrank();
+
+        assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.closedByOwner));
     }
 
     function test_ZapCloseCdpWithDonation_WithStEth_LowLeverage() public {
@@ -222,6 +226,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         
         uint256 _maxSlippage = 10050; // 0.5% slippage
 
+        assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.active));
+
         leverageZapRouter.closeCdp(
             cdpId,
             pmPermit,
@@ -237,6 +243,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 )
             })
         );
+
+        assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.closedByOwner));
 
         vm.stopPrank();
     }
