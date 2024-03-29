@@ -202,6 +202,45 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         vm.stopPrank();
     }
 
+    function test_ZapCloseCdpWithDonation_WithStEth_LowLeverage() public {
+        seedActivePool();
+
+        (address user, bytes32 cdpId) = createLeveragedPosition();
+
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
+
+        vm.prank(user);
+        collateral.transfer(address(leverageZapRouter), 1);
+
+        vm.startPrank(user);
+
+        ICdpManagerData.Cdp memory cdpInfo = ICdpCdps(address(cdpManager)).Cdps(cdpId);
+        uint256 flashFee = IERC3156FlashLender(address(borrowerOperations)).flashFee(
+            address(eBTCToken),
+            cdpInfo.debt
+        );
+        
+        uint256 _maxSlippage = 10050; // 0.5% slippage
+
+        leverageZapRouter.closeCdp(
+            cdpId,
+            pmPermit,
+            (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION, 
+            IEbtcLeverageZapRouter.TradeData({
+                performSwapChecks: true,
+                expectedMinOut: 0,
+                exchangeData: abi.encodeWithSelector(
+                    mockDex.swapExactOut.selector,
+                    address(collateral),
+                    address(eBTCToken),
+                    cdpInfo.debt + flashFee
+                )
+            })
+        );
+
+        vm.stopPrank();
+    }
+
     function test_adjustCdp_debtIncrease_stEth() public {
         seedActivePool();
 
