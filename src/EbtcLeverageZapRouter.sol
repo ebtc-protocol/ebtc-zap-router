@@ -15,20 +15,12 @@ import {IWrappedETH} from "./interface/IWrappedETH.sol";
 import {IEbtcLeverageZapRouter} from "./interface/IEbtcLeverageZapRouter.sol";
 import {IWstETH} from "./interface/IWstETH.sol";
 
-interface IMinChangeGetter {
-    function MIN_CHANGE() external view returns (uint256);
-}
-
 contract EbtcLeverageZapRouter is LeverageZapRouterBase {
     using SafeERC20 for IERC20;
 
-    uint256 public immutable MIN_CHANGE;
-
     constructor(
         IEbtcLeverageZapRouter.DeploymentParams memory params
-    ) LeverageZapRouterBase(params) {
-        MIN_CHANGE = IMinChangeGetter(params.borrowerOperations).MIN_CHANGE();
-    }
+    ) LeverageZapRouterBase(params) { }
 
     function openCdpWithEth(
         uint256 _debt,
@@ -176,6 +168,10 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         PositionManagerPermit calldata _positionManagerPermit,
         TradeData calldata _tradeData
     ) internal nonReentrant returns (bytes32 cdpId) {
+        
+        _requireZeroOrMinAdjustment(_debt);
+        _requireAtLeastMinNetStEthBalance(_stEthDepositAmount - LIQUIDATOR_REWARD);
+
         _permitPositionManagerApproval(borrowerOperations, _positionManagerPermit);
 
         cdpId = sortedCdps.toCdpId(msg.sender, block.number, sortedCdps.nextCdpNonce());
@@ -195,6 +191,8 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _stEthBalance: _stEthMarginAmount,
             _tradeData: _tradeData
         });
+
+        borrowerOperations.renouncePositionManagerApproval(msg.sender);
     }
 
     function closeCdp(
@@ -236,6 +234,8 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         uint256 _zapStEthBalanceAfter = stEth.balanceOf(address(this));
         uint256 _stETHDiff = _zapStEthBalanceAfter - _zapStEthBalanceBefore;
 
+        borrowerOperations.renouncePositionManagerApproval(msg.sender);
+
         _transferStEthToCaller(_cdpId, EthVariantZapOperationType.CloseCdp, _useWstETH, _stETHDiff);
     }
 
@@ -243,13 +243,6 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         require(
             _change >= MIN_CHANGE,
             "EbtcLeverageZapRouter: Debt or collateral change must be above min"
-        );
-    }
-
-    function _requireZeroOrMinAdjustment(uint256 _change) internal view {
-        require(
-            _change == 0 || _change >= MIN_CHANGE,
-            "EbtcLeverageZapRouter: Margin increase must be zero or above min"
         );
     }
 
@@ -354,6 +347,8 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _tradeData: _tradeData
         });
         uint256 _zapStEthBalanceDiff = stEth.balanceOf(address(this)) - _zapStEthBalanceBefore;
+
+        borrowerOperations.renouncePositionManagerApproval(msg.sender);
 
         if (_zapStEthBalanceDiff > 0) {
             _transferStEthToCaller(

@@ -10,16 +10,22 @@ import {IWrappedETH} from "./interface/IWrappedETH.sol";
 import {IStETH} from "./interface/IStETH.sol";
 import {IWstETH} from "./interface/IWstETH.sol";
 
+interface IMinChangeGetter {
+    function MIN_CHANGE() external view returns (uint256);
+}
+
 abstract contract ZapRouterBase is IEbtcZapRouterBase {
     address public constant NATIVE_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     uint256 public constant LIQUIDATOR_REWARD = 2e17;
     uint256 public constant MIN_NET_STETH_BALANCE = 2e18;
+    uint256 public immutable MIN_CHANGE;
 
     IERC20 public immutable wstEth;
     IStETH public immutable stEth;
     IERC20 public immutable wrappedEth;
 
-    constructor(IERC20 _wstEth, IERC20 _wEth, IStETH _stEth) {
+    constructor(address _borrowerOperations, IERC20 _wstEth, IERC20 _wEth, IStETH _stEth) {
+        MIN_CHANGE = IMinChangeGetter(_borrowerOperations).MIN_CHANGE();
         wstEth = _wstEth;
         wrappedEth = _wEth;
         stEth = _stEth;
@@ -124,5 +130,19 @@ abstract contract ZapRouterBase is IEbtcZapRouterBase {
             /// @notice adding try...catch around to mitigate potential permit front-running
             /// see: https://www.trust-security.xyz/post/permission-denied
         }
+    }
+
+    function _requireZeroOrMinAdjustment(uint256 _change) internal view {
+        require(
+            _change == 0 || _change >= MIN_CHANGE,
+            "ZapRouterBase: Debt or collateral change must be zero or above min"
+        );
+    }
+
+    function _requireAtLeastMinNetStEthBalance(uint256 _stEthBalance) internal pure {
+        require(
+            _stEthBalance >= MIN_NET_STETH_BALANCE,
+            "ZapRouterBase: Cdp's net stEth balance must not fall below minimum"
+        );
     }
 }

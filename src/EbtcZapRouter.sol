@@ -12,10 +12,6 @@ import {IWrappedETH} from "./interface/IWrappedETH.sol";
 import {IEbtcZapRouter} from "./interface/IEbtcZapRouter.sol";
 import {IWstETH} from "./interface/IWstETH.sol";
 
-interface IMinChangeGetter {
-    function MIN_CHANGE() external view returns (uint256);
-}
-
 contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
     using SafeERC20 for IERC20;
 
@@ -23,7 +19,6 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
     IBorrowerOperations public immutable borrowerOperations;
     ICdpManager public immutable cdpManager;
     address public immutable owner;
-    uint256 public immutable MIN_CHANGE;
 
     constructor(
         IERC20 _wstEth,
@@ -33,7 +28,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         IBorrowerOperations _borrowerOperations,
         ICdpManager _cdpManager,
         address _owner
-    ) ZapRouterBase(_wstEth, _wEth, _stEth) {
+    ) ZapRouterBase(address(_borrowerOperations), _wstEth, _wEth, _stEth) {
         ebtc = _ebtc;
         borrowerOperations = _borrowerOperations;
         cdpManager = _cdpManager;
@@ -42,8 +37,6 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         // Infinite Approvals @TODO: do these stay at max for each token?
         stEth.approve(address(borrowerOperations), type(uint256).max);
         stEth.approve(address(wstEth), type(uint256).max);
-
-        MIN_CHANGE = IMinChangeGetter(address(borrowerOperations)).MIN_CHANGE();
     }
 
     /// @dev This is to allow wrapped ETH related Zap
@@ -555,20 +548,6 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
     function _getOwnerAddress(bytes32 cdpId) internal pure returns (address) {
         uint256 _tmp = uint256(cdpId) >> 96;
         return address(uint160(_tmp));
-    }
-
-    function _requireZeroOrMinAdjustment(uint256 _change) internal view {
-        require(
-            _change == 0 || _change >= MIN_CHANGE,
-            "EbtcZapRouter: Debt or collateral change must be zero or above min"
-        );
-    }
-
-    function _requireAtLeastMinNetStEthBalance(uint256 _stEthBalance) internal pure {
-        require(
-            _stEthBalance >= MIN_NET_STETH_BALANCE,
-            "EbtcZapRouter: Cdp's net stEth balance must not fall below minimum"
-        );
     }
 
     function _requireNonZeroAdjustment(
