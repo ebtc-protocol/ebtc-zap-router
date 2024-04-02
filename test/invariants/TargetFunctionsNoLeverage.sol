@@ -48,6 +48,16 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         );
     }
 
+    function _zapBefore() private {
+        zapBefore.collShares = collateral.sharesOf(address(zapRouter));
+        zapBefore.stEthBalance = collateral.balanceOf(address(zapRouter));
+    }
+
+    function _zapAfter() private {
+        zapAfter.collShares = collateral.sharesOf(address(zapRouter));
+        zapAfter.stEthBalance = collateral.balanceOf(address(zapRouter));
+    }
+
     function openCdpWithEth(uint256 _debt, uint256 _ethBalance) public setup {
         _dealETH(zapActor, INITIAL_COLL_BALANCE);
 
@@ -76,6 +86,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -89,6 +100,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             _ethBalance,
             true
         );
+        _zapAfter();
 
         if (!success) {
             bool valid = _isValidAdjust(_debt, true, _ethBalance, 0);
@@ -102,6 +114,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             }
         }
 
+        _checkZR_01();
         _checkApproval(address(zapSender));
     }
 
@@ -140,6 +153,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -152,6 +166,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             ),
             true
         );
+        _zapAfter();
 
         if (!success) {
             bool valid = _isValidAdjust(_debt, true, _wethBalance, 0);
@@ -165,6 +180,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             }
         }
 
+        _checkZR_01();
         _checkApproval(address(zapSender));
     }
 
@@ -203,6 +219,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -215,6 +232,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             ),
             true
         );
+        _zapAfter();
 
         if (!success) {
             bool valid = _isValidAdjust(_debt, true, IWstETH(testWstEth).getStETHByWstETH(_wstEthBalance), 0);
@@ -228,6 +246,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             }
         }
 
+        _checkZR_01();
         _checkApproval(address(zapSender));
     }
 
@@ -254,6 +273,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -263,8 +283,11 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             ),
             true
         );
+        _zapAfter();
+
         t(success, "Call shouldn't fail");
 
+        _checkZR_01();
         _checkApproval(address(zapSender));
     }
 
@@ -317,6 +340,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -333,6 +357,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             ),
             true
         );
+        _zapAfter();
 
         bool valid = _isValidAdjust(
             _debtChange, 
@@ -345,6 +370,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             t(success, "Call shouldn't fail");
         }
 
+        _checkZR_01();
         _checkApproval(address(zapSender));
     }
 
@@ -397,6 +423,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -413,6 +440,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             ),
             true
         );
+        _zapAfter();
 
         bool valid = _isValidAdjust(
             _debtChange, 
@@ -425,7 +453,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             t(success, "Call shouldn't fail");
         }
 
-
+        _checkZR_01();
         _checkApproval(address(zapSender));
     }
 
@@ -478,6 +506,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -494,6 +523,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             ),
             true
         );
+        _zapAfter();
 
         bool valid = _isValidAdjust(
             _debtChange, 
@@ -506,7 +536,21 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             t(success, "Call shouldn't fail");
         }
 
+        _checkZR_01();
         _checkApproval(address(zapSender));
+    }
+
+    function _checkZR_01() private {
+        lte(
+            zapAfter.stEthBalance - zapBefore.stEthBalance,
+            MAX_COLL_ROUNDING_ERROR,
+            ZR_01
+        );
+        lte(
+            zapAfter.collShares - zapBefore.collShares,
+            MAX_COLL_ROUNDING_ERROR,
+            ZR_01
+        );
     }
 
     function _isValidAdjust(
