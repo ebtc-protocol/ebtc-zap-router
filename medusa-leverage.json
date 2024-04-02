@@ -8,10 +8,10 @@
 		"corpusDirectory": "medusa",
 		"coverageEnabled": true,
 		"deploymentOrder": [
-			"EchidnaTester"
+			"EchidnaLeverageTester"
 		],
 		"targetContracts": [
-			"EchidnaTester"
+			"EchidnaLeverageTester"
 		],
 		"targetContractsBalances": [
 			"0x27b46536c66c8e3000000"
@@ -73,7 +73,7 @@
 	"compilation": {
 		"platform": "crytic-compile",
 		"platformConfig": {
-			"target": "test/invariants/echidna/EchidnaTester.sol",
+			"target": "test/invariants/echidna/EchidnaLeverageTester.sol",
 			"solcVersion": "",
 			"exportDirectory": "",
 			"args": [
