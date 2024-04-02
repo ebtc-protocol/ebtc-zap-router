@@ -10,6 +10,7 @@ import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/LeverageMa
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {WETH9} from "@ebtc/contracts/TestContracts/WETH9.sol";
 import {IStETH} from "../../src/interface/IStETH.sol";
+import {IWstETH} from "../../src/interface/IWstETH.sol";
 import {ZapRouterProperties} from "../../src/invariants/ZapRouterProperties.sol";
 import {EbtcZapRouter} from "../../src/EbtcZapRouter.sol";
 import {EbtcLeverageZapRouter} from "../../src/EbtcLeverageZapRouter.sol";
@@ -19,6 +20,16 @@ import {IEbtcLeverageZapRouter} from "../../src/interface/IEbtcLeverageZapRouter
 import {IEbtcZapRouterBase} from "../../src/interface/IEbtcZapRouterBase.sol";
 import {WstETH} from "../../src/testContracts/WstETH.sol";
 import {TargetFunctionsBase} from "./TargetFunctionsBase.sol";
+
+interface ITCRGetter {
+    function getNewTCRFromCdpChange(
+        uint256 _collChange,
+        bool isCollIncrease,
+        uint256 _debtChange,
+        bool isDebtIncrease,
+        uint256 _price
+    ) external view returns (uint256);
+}
 
 abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
     function setUp() public virtual {
@@ -42,10 +53,6 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
 
         bool success;
         bytes memory returnData;
-
-        // TODO: Figure out the best way to clamp this
-        // Is clamping necessary? Can we just let it revert?
-        _debt = between(_debt, 1, 0.1e18);
 
         // we pass in CCR instead of MCR in case it's the first one
         uint price = priceFeedMock.getPrice();
@@ -82,7 +89,18 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             _ethBalance,
             true
         );
-        t(success, "Call shouldn't fail");
+
+        if (!success) {
+            bool valid = _isValidAdjust(_debt, true, _ethBalance, 0);
+
+            if (_ethBalance < zapRouter.MIN_NET_STETH_BALANCE()) {
+                valid = false;
+            }
+            
+            if (valid) {
+                t(success, "Call shouldn't fail");
+            }
+        }
 
         _checkApproval(address(zapSender));
     }
@@ -95,10 +113,6 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
 
         bool success;
         bytes memory returnData;
-
-        // TODO: Figure out the best way to clamp this
-        // Is clamping necessary? Can we just let it revert?
-        _debt = between(_debt, 1, 0.1e18);
 
         // we pass in CCR instead of MCR in case it's the first one
         uint price = priceFeedMock.getPrice();
@@ -138,7 +152,18 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             ),
             true
         );
-        t(success, "Call shouldn't fail");
+
+        if (!success) {
+            bool valid = _isValidAdjust(_debt, true, _wethBalance, 0);
+
+            if (_wethBalance < zapRouter.MIN_NET_STETH_BALANCE()) {
+                valid = false;
+            }
+
+            if (valid) {
+                t(success, "Call shouldn't fail");
+            }
+        }
 
         _checkApproval(address(zapSender));
     }
@@ -151,10 +176,6 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
 
         bool success;
         bytes memory returnData;
-
-        // TODO: Figure out the best way to clamp this
-        // Is clamping necessary? Can we just let it revert?
-        _debt = between(_debt, 1, 0.1e18);
 
         // we pass in CCR instead of MCR in case it's the first one
         uint price = priceFeedMock.getPrice();
@@ -169,11 +190,11 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             2 * minCollAmount,
             INITIAL_COLL_BALANCE / 10
         );
-        _wstEthBalance = between(
+        _wstEthBalance = IWstETH(testWstEth).getWstETHByStETH(between(
             requiredCollAmount,
             minCollAmount,
             maxCollAmount
-        );
+        ));
 
         IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
@@ -194,7 +215,18 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             ),
             true
         );
-        t(success, "Call shouldn't fail");
+
+        if (!success) {
+            bool valid = _isValidAdjust(_debt, true, IWstETH(testWstEth).getStETHByWstETH(_wstEthBalance), 0);
+
+            if (IWstETH(testWstEth).getStETHByWstETH(_wstEthBalance) < zapRouter.MIN_NET_STETH_BALANCE()) {
+                valid = false;
+            }
+
+            if (valid) {
+                t(success, "Call shouldn't fail");
+            }
+        }
 
         _checkApproval(address(zapSender));
     }
@@ -301,7 +333,17 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             ),
             true
         );
-        t(success, "Call shouldn't fail");
+
+        bool valid = _isValidAdjust(
+            _debtChange, 
+            _isDebtIncrease,
+            _stEthBalanceIncrease,
+            _stEthBalanceDecrease
+        );
+
+        if (valid) {
+            t(success, "Call shouldn't fail");
+        }
 
         _checkApproval(address(zapSender));
     }
@@ -371,7 +413,18 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             ),
             true
         );
-        t(success, "Call shouldn't fail");
+
+        bool valid = _isValidAdjust(
+            _debtChange, 
+            _isDebtIncrease,
+            _wethBalanceIncrease,
+            _stEthBalanceDecrease
+        );
+
+        if (valid) {
+            t(success, "Call shouldn't fail");
+        }
+
 
         _checkApproval(address(zapSender));
     }
@@ -412,10 +465,10 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             );
             _debtChange = between(_debtChange, 0, entireDebt);
 
-            _wstEthBalanceIncrease = min(
+            _wstEthBalanceIncrease = IWstETH(testWstEth).getWstETHByStETH(min(
                 _wstEthBalanceIncrease,
                 (INITIAL_COLL_BALANCE / 10) - entireColl
-            );
+            ));
         }
 
         IEbtcZapRouterBase.PositionManagerPermit
@@ -441,8 +494,53 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
             ),
             true
         );
-        t(success, "Call shouldn't fail");
+
+        bool valid = _isValidAdjust(
+            _debtChange, 
+            _isDebtIncrease,
+            IWstETH(testWstEth).getStETHByWstETH(_wstEthBalanceIncrease),
+            _stEthBalanceDecrease
+        );
+
+        if (valid) {
+            t(success, "Call shouldn't fail");
+        }
 
         _checkApproval(address(zapSender));
+    }
+
+    function _isValidAdjust(
+        uint256 _debtChange, 
+        bool _isDebtIncrease,
+        uint256 _stEthBalanceIncrease,
+        uint256 _stEthBalanceDecrease
+    ) private view returns (bool) {
+        if (_debtChange > 0 && _debtChange < zapRouter.MIN_CHANGE()) {
+            return false;         
+        }
+        if (_stEthBalanceIncrease > 0 && _stEthBalanceDecrease > 0) {
+            return false;
+        }
+        if (_stEthBalanceIncrease > 0 && _stEthBalanceIncrease < zapRouter.MIN_CHANGE()) {
+            return false;
+        }
+        if (_stEthBalanceDecrease > 0 && _stEthBalanceDecrease < zapRouter.MIN_CHANGE()) {
+            return false;
+        }
+        uint price = priceFeedMock.getPrice();
+
+        uint256 tcr = ITCRGetter(address(borrowerOperations)).getNewTCRFromCdpChange(
+            _stEthBalanceIncrease > 0 ? _stEthBalanceIncrease : _stEthBalanceDecrease,
+            _stEthBalanceIncrease > 0,
+            _debtChange,
+            _isDebtIncrease,
+            price
+        );
+
+        if (tcr < borrowerOperations.CCR()) {
+            return false;
+        }
+
+        return true;
     }
 }
