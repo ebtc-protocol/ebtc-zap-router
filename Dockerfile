@@ -97,7 +97,7 @@ RUN git config --global user.name "Your Name"
 
 RUN echo "Downloading and building Medusa..."
 RUN git clone https://github.com/crytic/medusa
-RUN cd medusa && git checkout ac99e78ee38df86a8afefb21f105be9e4eae46ee && git pull origin dev/merge-assertion-and-property-mode && git pull origin dev/no-multi-abi
+RUN cd medusa && git checkout tags/v0.1.3
 
 ## WARNING!!!!
 ## Comment this line on Silicon, the line below is for Intel!
