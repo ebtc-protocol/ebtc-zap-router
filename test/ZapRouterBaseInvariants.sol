@@ -6,7 +6,7 @@ import {EbtcZapRouter} from "../src/EbtcZapRouter.sol";
 import {EbtcLeverageZapRouter} from "../src/EbtcLeverageZapRouter.sol";
 import {ZapRouterBaseStorageVariables} from "../src/invariants/ZapRouterBaseStorageVariables.sol";
 import {eBTCBaseInvariants} from "@ebtc/foundry_test/BaseInvariants.sol";
-import {ICdpManager} from "@ebtc/contracts/interfaces/ICdpManager.sol";
+import {ICdpManager} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {Mock1Inch} from "@ebtc/contracts/TestContracts/Mock1Inch.sol";

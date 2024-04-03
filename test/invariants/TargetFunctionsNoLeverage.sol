@@ -5,7 +5,7 @@ import "@crytic/properties/contracts/util/Hevm.sol";
 import {TargetContractSetup} from "@ebtc/contracts/TestContracts/invariants/TargetContractSetup.sol";
 import {CollateralTokenTester} from "@ebtc/contracts/TestContracts/CollateralTokenTester.sol";
 import {Mock1Inch} from "@ebtc/contracts/TestContracts/Mock1Inch.sol";
-import {ICdpManager} from "@ebtc/contracts/interfaces/ICdpManager.sol";
+import {ICdpManager} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {WETH9} from "@ebtc/contracts/TestContracts/WETH9.sol";
