@@ -14,7 +14,7 @@
 			"EchidnaLeverageTester"
 		],
 		"targetContractsBalances": [
-			"0x27b46536c66c8e3000000"
+			"0x27b46536c66c8e300000000000"
 		],
 		"constructorArgs": {},
 		"deployerAddress": "0x0c9e4828dC9a79a597699307c4a084595145a732",

@@ -108,6 +108,8 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             _marginAmount = MAXIMUM_COLL - flAmount;
         }
 
+        require(_marginAmount <= collateral.balanceOf(zapActor.sender()));
+
         _seedActivePoolAndDex(flAmount);
 
         _dealCollateral(zapActor, _marginAmount, true);
