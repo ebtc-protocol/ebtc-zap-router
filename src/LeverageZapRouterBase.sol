@@ -6,21 +6,19 @@ import {IPriceFeed} from "@ebtc/contracts/Interfaces/IPriceFeed.sol";
 import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {LeverageMacroBase} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {ReentrancyGuard} from "@ebtc/contracts/Dependencies/ReentrancyGuard.sol";
-import {IEbtcLeverageZapRouter} from "./interface/IEbtcLeverageZapRouter.sol";
+import {IEbtcLeverageZapRouterBase} from "./interface/IEbtcLeverageZapRouter.sol";
 import {ZapRouterBase} from "./ZapRouterBase.sol";
 import {IStETH} from "./interface/IStETH.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 
-abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, ReentrancyGuard, IEbtcLeverageZapRouter {
+abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, ReentrancyGuard, IEbtcLeverageZapRouterBase {
     uint256 internal constant PRECISION = 1e18;
 
     address internal immutable theOwner;
     IPriceFeed internal immutable priceFeed;
     address internal immutable dex;
 
-    constructor(
-        IEbtcLeverageZapRouter.DeploymentParams memory params
-    )
+    constructor(DeploymentParams memory params)
         ZapRouterBase(
             params.borrowerOperations, 
             IERC20(params.wstEth), 
@@ -162,6 +160,43 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         _sweepStEth();
     }
 
+    function _openCdp(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _stEthLoanAmount,
+        uint256 _stEthMarginAmount,
+        uint256 _stEthDepositAmount,
+        PositionManagerPermit calldata _positionManagerPermit,
+        TradeData calldata _tradeData
+    ) internal nonReentrant returns (bytes32 cdpId) {
+        
+        _requireZeroOrMinAdjustment(_debt);
+        _requireAtLeastMinNetStEthBalance(_stEthDepositAmount - LIQUIDATOR_REWARD);
+
+        _permitPositionManagerApproval(borrowerOperations, _positionManagerPermit);
+
+        cdpId = sortedCdps.toCdpId(msg.sender, block.number, sortedCdps.nextCdpNonce());
+
+        OpenCdpForOperation memory cdp;
+
+        cdp.eBTCToMint = _debt;
+        cdp._upperHint = _upperHint;
+        cdp._lowerHint = _lowerHint;
+        cdp.stETHToDeposit = _stEthDepositAmount;
+        cdp.borrower = msg.sender;
+
+        _openCdpOperation({
+            _cdpId: cdpId,
+            _cdp: cdp,
+            _flAmount: _stEthLoanAmount,
+            _stEthBalance: _stEthMarginAmount,
+            _tradeData: _tradeData
+        });
+
+        borrowerOperations.renouncePositionManagerApproval(msg.sender);
+    }
+
     function _closeCdpOperation(
         bytes32 _cdpId,
         uint256 _debt,
@@ -238,5 +273,22 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
                 cdpId: _cdpId,
                 expectedStatus: _status
             });
+    }
+
+    function _requireMinAdjustment(uint256 _change) internal view {
+        require(
+            _change >= MIN_CHANGE,
+            "LeverageZapRouterBase: Debt or collateral change must be above min"
+        );
+    }
+
+    function _requireSingularMarginChange(
+        uint256 _stEthMarginIncrease,
+        uint256 _stEthMarginDecrease
+    ) internal pure {
+        require(
+            _stEthMarginIncrease == 0 || _stEthMarginDecrease == 0,
+            "LeverageZapRouterBase: Cannot add and withdraw margin in same operation"
+        );
     }
 }

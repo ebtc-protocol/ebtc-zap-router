@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import {IEbtcZapRouterBase} from "./IEbtcZapRouterBase.sol";
 
-interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
+interface IEbtcLeverageZapRouterBase is IEbtcZapRouterBase {
     struct DeploymentParams {
         address borrowerOperations;
         address activePool;
@@ -35,7 +35,9 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         uint256 expectedMinOut;
         bool performSwapChecks;
     }
+}
 
+interface IEbtcLeverageZapRouter is IEbtcLeverageZapRouterBase {
     function openCdp(
         uint256 _debt,
         bytes32 _upperHint,

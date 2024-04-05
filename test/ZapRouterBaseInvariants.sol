@@ -11,7 +11,7 @@ import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/LeverageMa
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {Mock1Inch} from "@ebtc/contracts/TestContracts/Mock1Inch.sol";
 import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
-import {IEbtcLeverageZapRouter} from "../src/interface/IEbtcLeverageZapRouter.sol";
+import {IEbtcLeverageZapRouter, IEbtcLeverageZapRouterBase} from "../src/interface/IEbtcLeverageZapRouter.sol";
 import {IEbtcZapRouterBase} from "../src/interface/IEbtcZapRouterBase.sol";
 import {WETH9} from "@ebtc/contracts/TestContracts/WETH9.sol";
 import {IStETH} from "../src/interface/IStETH.sol";
@@ -29,6 +29,11 @@ contract ZapRouterBaseInvariants is
 
     uint256 public constant FIXED_COLL_SIZE = 30 ether;
     uint256 public constant MAX_COLL_ROUNDING_ERROR = 2;
+    uint256 internal constant SLIPPAGE_PRECISION = 1e4;
+    /// @notice Collateral buffer used to account for slippage and fees
+    /// 9995 = 0.05%
+    uint256 internal constant COLLATERAL_BUFFER = 9995;
+
     address internal TEST_FIXED_USER;
     ZapRouterState internal stateBefore;
     ZapRouterState internal stateAfter;
@@ -48,7 +53,7 @@ contract ZapRouterBaseInvariants is
             ICdpManager(address(cdpManager)),
             defaultGovernance
         );
-        leverageZapRouter = new EbtcLeverageZapRouter(IEbtcLeverageZapRouter.DeploymentParams({
+        leverageZapRouter = new EbtcLeverageZapRouter(IEbtcLeverageZapRouterBase.DeploymentParams({
             borrowerOperations: address(borrowerOperations),
             activePool: address(activePool),
             cdpManager: address(cdpManager),
@@ -130,6 +135,26 @@ contract ZapRouterBaseInvariants is
         uint256 _privateKey
     ) internal returns (address user) {
         user = vm.addr(_privateKey);
+    }
+
+    function createPermit(
+        address target,
+        address user
+    ) internal returns (IEbtcZapRouter.PositionManagerPermit memory pmPermit) {
+        uint _deadline = (block.timestamp + deadline);
+        IPositionManagers.PositionManagerApproval _approval = IPositionManagers
+            .PositionManagerApproval
+            .OneTime;
+
+        vm.startPrank(user);
+
+        // Generate signature to one-time approve zap
+        bytes32 digest = _generatePermitSignature(user, target, _approval, _deadline);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivateKey, digest);
+
+        pmPermit = IEbtcZapRouterBase.PositionManagerPermit(_deadline, v, r, s);
+
+        vm.stopPrank();
     }
 
     function _generatePermitSignature(

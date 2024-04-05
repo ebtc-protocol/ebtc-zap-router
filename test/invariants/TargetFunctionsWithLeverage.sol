@@ -17,7 +17,7 @@ import {EbtcZapRouter} from "../../src/EbtcZapRouter.sol";
 import {EbtcLeverageZapRouter} from "../../src/EbtcLeverageZapRouter.sol";
 import {ZapRouterActor} from "../../src/invariants/ZapRouterActor.sol";
 import {IEbtcZapRouter} from "../../src/interface/IEbtcZapRouter.sol";
-import {IEbtcLeverageZapRouter} from "../../src/interface/IEbtcLeverageZapRouter.sol";
+import {IEbtcLeverageZapRouter, IEbtcLeverageZapRouterBase} from "../../src/interface/IEbtcLeverageZapRouter.sol";
 import {IEbtcZapRouterBase} from "../../src/interface/IEbtcZapRouterBase.sol";
 import {WstETH} from "../../src/testContracts/WstETH.sol";
 import {TargetFunctionsBase} from "./TargetFunctionsBase.sol";
@@ -37,7 +37,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         testWeth = address(new WETH9());
         testWstEth = address(new WstETH(address(collateral)));
         leverageZapRouter = new EbtcLeverageZapRouter(
-            IEbtcLeverageZapRouter.DeploymentParams({
+            IEbtcLeverageZapRouterBase.DeploymentParams({
                 borrowerOperations: address(borrowerOperations),
                 activePool: address(activePool),
                 cdpManager: address(cdpManager),
@@ -314,7 +314,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             abi.encodeWithSelector(
                 IEbtcLeverageZapRouter.adjustCdp.selector,
                 _cdpId,
-                IEbtcLeverageZapRouter.AdjustCdpParams({
+                IEbtcLeverageZapRouterBase.AdjustCdpParams({
                     flashLoanAmount: _debtToCollateral(_debtChange),
                     debtChange: _debtChange,
                     isDebtIncrease: true,
@@ -356,7 +356,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             abi.encodeWithSelector(
                 IEbtcLeverageZapRouter.adjustCdp.selector,
                 _cdpId,
-                IEbtcLeverageZapRouter.AdjustCdpParams({
+                IEbtcLeverageZapRouterBase.AdjustCdpParams({
                     flashLoanAmount: _debtChange,
                     debtChange: _debtChange,
                     isDebtIncrease: false,

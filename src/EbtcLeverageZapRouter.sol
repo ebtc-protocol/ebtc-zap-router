@@ -30,7 +30,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         uint256 _ethMarginBalance,
         uint256 _stEthDepositAmount,
         PositionManagerPermit calldata _positionManagerPermit,
-        TradeData calldata _tradeData
+        IEbtcLeverageZapRouter.TradeData calldata _tradeData
     ) external payable returns (bytes32 cdpId) {
         uint256 _collVal = _convertRawEthToStETH(_ethMarginBalance);
 
@@ -64,7 +64,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         uint256 _wstEthMarginBalance,
         uint256 _stEthDepositAmount,
         PositionManagerPermit calldata _positionManagerPermit,
-        TradeData calldata _tradeData
+        IEbtcLeverageZapRouter.TradeData calldata _tradeData
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _convertWstEthToStETH(_wstEthMarginBalance);
 
@@ -98,7 +98,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         uint256 _wethMarginBalance,
         uint256 _stEthDepositAmount,
         PositionManagerPermit calldata _positionManagerPermit,
-        TradeData calldata _tradeData
+        IEbtcLeverageZapRouter.TradeData calldata _tradeData
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _convertWrappedEthToStETH(_wethMarginBalance);
 
@@ -132,7 +132,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         uint256 _stEthMarginAmount,
         uint256 _stEthDepositAmount,
         PositionManagerPermit calldata _positionManagerPermit,
-        TradeData calldata _tradeData
+        IEbtcLeverageZapRouter.TradeData calldata _tradeData
     ) external returns (bytes32 cdpId) {
         uint256 _collVal = _transferInitialStETHFromCaller(_stEthMarginAmount);
 
@@ -158,48 +158,11 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         );
     }
 
-    function _openCdp(
-        uint256 _debt,
-        bytes32 _upperHint,
-        bytes32 _lowerHint,
-        uint256 _stEthLoanAmount,
-        uint256 _stEthMarginAmount,
-        uint256 _stEthDepositAmount,
-        PositionManagerPermit calldata _positionManagerPermit,
-        TradeData calldata _tradeData
-    ) internal nonReentrant returns (bytes32 cdpId) {
-        
-        _requireZeroOrMinAdjustment(_debt);
-        _requireAtLeastMinNetStEthBalance(_stEthDepositAmount - LIQUIDATOR_REWARD);
-
-        _permitPositionManagerApproval(borrowerOperations, _positionManagerPermit);
-
-        cdpId = sortedCdps.toCdpId(msg.sender, block.number, sortedCdps.nextCdpNonce());
-
-        OpenCdpForOperation memory cdp;
-
-        cdp.eBTCToMint = _debt;
-        cdp._upperHint = _upperHint;
-        cdp._lowerHint = _lowerHint;
-        cdp.stETHToDeposit = _stEthDepositAmount;
-        cdp.borrower = msg.sender;
-
-        _openCdpOperation({
-            _cdpId: cdpId,
-            _cdp: cdp,
-            _flAmount: _stEthLoanAmount,
-            _stEthBalance: _stEthMarginAmount,
-            _tradeData: _tradeData
-        });
-
-        borrowerOperations.renouncePositionManagerApproval(msg.sender);
-    }
-
     function closeCdp(
         bytes32 _cdpId,
         PositionManagerPermit calldata _positionManagerPermit,
         uint256 _stEthAmount,
-        TradeData calldata _tradeData
+        IEbtcLeverageZapRouter.TradeData calldata _tradeData
     ) external {
         _closeCdp(_cdpId, _positionManagerPermit, _stEthAmount, false, _tradeData);
     }
@@ -208,7 +171,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         bytes32 _cdpId,
         PositionManagerPermit calldata _positionManagerPermit,
         uint256 _stEthAmount,
-        TradeData calldata _tradeData
+        IEbtcLeverageZapRouter.TradeData calldata _tradeData
     ) external {
         _closeCdp(_cdpId, _positionManagerPermit, _stEthAmount, true, _tradeData);
     }
@@ -218,7 +181,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         PositionManagerPermit calldata _positionManagerPermit,
         uint256 _stEthAmount,
         bool _useWstETH,
-        TradeData calldata _tradeData
+        IEbtcLeverageZapRouter.TradeData calldata _tradeData
     ) internal nonReentrant {
         uint256 debt = ICdpManager(address(cdpManager)).getSyncedCdpDebt(_cdpId);
 
@@ -239,28 +202,11 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         _transferStEthToCaller(_cdpId, EthVariantZapOperationType.CloseCdp, _useWstETH, _stETHDiff);
     }
 
-    function _requireMinAdjustment(uint256 _change) internal view {
-        require(
-            _change >= MIN_CHANGE,
-            "EbtcLeverageZapRouter: Debt or collateral change must be above min"
-        );
-    }
-
-    function _requireSingularMarginChange(
-        uint256 _stEthMarginIncrease,
-        uint256 _stEthMarginDecrease
-    ) internal pure {
-        require(
-            _stEthMarginIncrease == 0 || _stEthMarginDecrease == 0,
-            "EbtcLeverageZapRouter: Cannot add and withdraw margin in same operation"
-        );
-    }
-
     function adjustCdpWithEth(
         bytes32 _cdpId,
         AdjustCdpParams memory params,
         PositionManagerPermit calldata _positionManagerPermit,
-        TradeData calldata _tradeData
+        IEbtcLeverageZapRouter.TradeData calldata _tradeData
     ) external payable {
         if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
             params.stEthMarginBalance = _convertRawEthToStETH(params.stEthMarginBalance);
@@ -272,7 +218,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         bytes32 _cdpId,
         AdjustCdpParams memory params,
         PositionManagerPermit calldata _positionManagerPermit,
-        TradeData calldata _tradeData
+        IEbtcLeverageZapRouter.TradeData calldata _tradeData
     ) external {
         if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
             params.stEthMarginBalance = _convertWstEthToStETH(params.stEthMarginBalance);

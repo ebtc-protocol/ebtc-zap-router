@@ -8,7 +8,7 @@ import {IERC3156FlashLender} from "@ebtc/contracts/Interfaces/IERC3156FlashLende
 import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
-import {IEbtcLeverageZapRouter} from "../src/interface/IEbtcLeverageZapRouter.sol";
+import {IEbtcLeverageZapRouter, IEbtcLeverageZapRouterBase} from "../src/interface/IEbtcLeverageZapRouter.sol";
 import {IEbtcZapRouterBase} from "../src/interface/IEbtcZapRouterBase.sol";
 
 interface ICdpCdps {
@@ -42,41 +42,17 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         collateral.deposit{value: 10000 ether}();
     }
 
-    function createPermit(
-        address user
-    ) private returns (IEbtcZapRouter.PositionManagerPermit memory pmPermit) {
-        uint _deadline = (block.timestamp + deadline);
-        IPositionManagers.PositionManagerApproval _approval = IPositionManagers
-            .PositionManagerApproval
-            .OneTime;
-
-        vm.startPrank(user);
-
-        // Generate signature to one-time approve zap
-        bytes32 digest = _generatePermitSignature(user, address(leverageZapRouter), _approval, _deadline);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivateKey, digest);
-
-        pmPermit = IEbtcZapRouterBase.PositionManagerPermit(_deadline, v, r, s);
-
-        vm.stopPrank();
-    }
-
     function _debtToCollateral(uint256 _debt) public returns (uint256) {
         uint256 price = priceFeedMock.fetchPrice();
         return (_debt * 1e18) / price;
     }
-
-    uint256 internal constant SLIPPAGE_PRECISION = 1e4;
-    /// @notice Collateral buffer used to account for slippage and fees
-    /// 9995 = 0.05%
-    uint256 internal constant COLLATERAL_BUFFER = 9995;
 
     function createLeveragedPosition() private returns (address user, bytes32 expectedCdpId) {
         user = vm.addr(userPrivateKey);
 
         _dealCollateralAndPrepForUse(user);
 
-        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(address(leverageZapRouter), user);
 
         vm.startPrank(user);
 
@@ -118,7 +94,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
     function _getOpenCdpTradeData(uint256 _debt, uint256 expectedMinOut) 
         private returns (IEbtcLeverageZapRouter.TradeData memory) {
-        return IEbtcLeverageZapRouter.TradeData({
+        return IEbtcLeverageZapRouterBase.TradeData({
             performSwapChecks: true,
             expectedMinOut: expectedMinOut,
             exchangeData: abi.encodeWithSelector(
@@ -171,7 +147,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         (address user, bytes32 cdpId) = createLeveragedPosition();
 
-        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(address(leverageZapRouter), user);
 
         vm.startPrank(user);
 
@@ -189,7 +165,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             cdpId,
             pmPermit,
             (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION, 
-            IEbtcLeverageZapRouter.TradeData({
+            IEbtcLeverageZapRouterBase.TradeData({
                 performSwapChecks: true,
                 expectedMinOut: 0,
                 exchangeData: abi.encodeWithSelector(
@@ -211,7 +187,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         (address user, bytes32 cdpId) = createLeveragedPosition();
 
-        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(address(leverageZapRouter), user);
 
         vm.prank(user);
         collateral.transfer(address(leverageZapRouter), 1);
@@ -232,7 +208,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             cdpId,
             pmPermit,
             (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION, 
-            IEbtcLeverageZapRouter.TradeData({
+            IEbtcLeverageZapRouterBase.TradeData({
                 performSwapChecks: true,
                 expectedMinOut: 0,
                 exchangeData: abi.encodeWithSelector(
@@ -254,7 +230,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         (address user, bytes32 cdpId) = createLeveragedPosition();
 
-        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(address(leverageZapRouter), user);
 
         vm.startPrank(user);
 
@@ -267,7 +243,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         leverageZapRouter.adjustCdp(
             cdpId, 
-            IEbtcLeverageZapRouter.AdjustCdpParams({
+            IEbtcLeverageZapRouterBase.AdjustCdpParams({
                 flashLoanAmount: _debtToCollateral(debtChange),
                 debtChange: debtChange,
                 isDebtIncrease: true,
@@ -280,7 +256,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 useWstETHForDecrease: false
             }), 
             pmPermit, 
-            IEbtcLeverageZapRouter.TradeData({
+            IEbtcLeverageZapRouterBase.TradeData({
                 performSwapChecks: false,
                 expectedMinOut: 0,
                 exchangeData: abi.encodeWithSelector(
@@ -314,7 +290,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         (address user, bytes32 cdpId) = createLeveragedPosition();
 
-        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(address(leverageZapRouter), user);
 
         vm.startPrank(user);
 
@@ -327,7 +303,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         leverageZapRouter.adjustCdp(
             cdpId, 
-            IEbtcLeverageZapRouter.AdjustCdpParams({
+            IEbtcLeverageZapRouterBase.AdjustCdpParams({
                 flashLoanAmount: debtChange,
                 debtChange: debtChange,
                 isDebtIncrease: false,
@@ -340,7 +316,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 useWstETHForDecrease: false
             }), 
             pmPermit,
-            IEbtcLeverageZapRouter.TradeData({
+            IEbtcLeverageZapRouterBase.TradeData({
                 performSwapChecks: false,
                 expectedMinOut: 0,
                 exchangeData: abi.encodeWithSelector(
