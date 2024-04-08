@@ -57,7 +57,6 @@ contract ZapRouterBaseInvariants is
             weth: address(testWeth),
             wstEth: address(testWstEth),
             sortedCdps: address(sortedCdps),
-            priceFeed: address(priceFeedMock),
             dex: address(mockDex)
         }));
         TEST_FIXED_USER = _createUserFromPrivateKey(userPrivateKey);

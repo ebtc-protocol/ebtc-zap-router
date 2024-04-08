@@ -15,7 +15,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
     uint256 internal constant PRECISION = 1e18;
 
     address internal immutable theOwner;
-    IPriceFeed internal immutable priceFeed;
     address internal immutable dex;
 
     constructor(
@@ -38,7 +37,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         )
     {
         theOwner = msg.sender;
-        priceFeed = IPriceFeed(params.priceFeed);
         dex = params.dex;
 
         // Infinite Approvals @TODO: do these stay at max for each token?
@@ -73,11 +71,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         if (bal > 0) {
             stEth.transferShares(msg.sender, bal);
         }
-    }
-
-    function _debtToCollateral(uint256 _debt) public returns (uint256) {
-        uint256 price = priceFeed.fetchPrice();
-        return (_debt * PRECISION) / price;
     }
 
     function _adjustCdpOperation(

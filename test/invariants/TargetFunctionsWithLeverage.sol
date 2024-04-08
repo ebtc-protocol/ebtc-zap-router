@@ -46,7 +46,6 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 weth: address(testWeth),
                 wstEth: address(testWstEth),
                 sortedCdps: address(sortedCdps),
-                priceFeed: address(priceFeedMock),
                 dex: address(mockDex)
             })
         );
