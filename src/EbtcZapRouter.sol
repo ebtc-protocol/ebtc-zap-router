@@ -449,7 +449,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         _requireZeroOrMinAdjustment(_debt);
         _requireAtLeastMinNetStEthBalance(_stEthBalance - LIQUIDATOR_REWARD);
 
-        _permitPositionManagerApproval(borrowerOperations, _positionManagerPermit);
+        _permitPositionManagerApproval(msg.sender, borrowerOperations, _positionManagerPermit);
 
         cdpId = borrowerOperations.openCdpFor(
             _debt,
@@ -476,7 +476,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         uint256 _debt = ICdpManagerData(address(cdpManager)).getSyncedCdpDebt(_cdpId);
         ebtc.transferFrom(msg.sender, address(this), _debt);
 
-        _permitPositionManagerApproval(borrowerOperations, _positionManagerPermit);
+        _permitPositionManagerApproval(msg.sender, borrowerOperations, _positionManagerPermit);
 
         uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
         borrowerOperations.closeCdp(_cdpId);
@@ -510,7 +510,7 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         _requireZeroOrMinAdjustment(_collBalanceIncrease);
         _requireZeroOrMinAdjustment(_collBalanceDecrease);
 
-        _permitPositionManagerApproval(borrowerOperations, _positionManagerPermit);
+        _permitPositionManagerApproval(msg.sender, borrowerOperations, _positionManagerPermit);
 
         // for debt decrease
         if (!isDebtIncrease && _debtChange > 0) {

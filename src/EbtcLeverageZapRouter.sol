@@ -185,7 +185,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
     ) internal nonReentrant {
         uint256 debt = ICdpManager(address(cdpManager)).getSyncedCdpDebt(_cdpId);
 
-        _permitPositionManagerApproval(borrowerOperations, _positionManagerPermit);
+        _permitPositionManagerApproval(msg.sender, borrowerOperations, _positionManagerPermit);
 
         uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
         _closeCdpOperation({
@@ -259,7 +259,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
 
         (uint256 debt, ) = ICdpManager(address(cdpManager)).getSyncedDebtAndCollShares(_cdpId);
 
-        _permitPositionManagerApproval(borrowerOperations, _positionManagerPermit);
+        _permitPositionManagerApproval(msg.sender, borrowerOperations, _positionManagerPermit);
 
         uint256 marginDecrease = params.isStEthBalanceIncrease ? 0 : params.stEthBalanceChange;
         if (!params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {

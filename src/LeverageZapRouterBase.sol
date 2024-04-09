@@ -174,7 +174,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         _requireZeroOrMinAdjustment(_debt);
         _requireAtLeastMinNetStEthBalance(_stEthDepositAmount - LIQUIDATOR_REWARD);
 
-        _permitPositionManagerApproval(borrowerOperations, _positionManagerPermit);
+        _permitPositionManagerApproval(msg.sender, borrowerOperations, _positionManagerPermit);
 
         cdpId = sortedCdps.toCdpId(msg.sender, block.number, sortedCdps.nextCdpNonce());
 
