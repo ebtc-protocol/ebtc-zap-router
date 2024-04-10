@@ -158,6 +158,38 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         );
     }
 
+    function openCdpNoPermit(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _stEthLoanAmount,
+        uint256 _stEthMarginAmount,
+        uint256 _stEthDepositAmount,
+        IEbtcLeverageZapRouter.TradeData calldata _tradeData
+    ) external returns (bytes32 cdpId) {
+        uint256 _collVal = _transferInitialStETHFromCaller(_stEthMarginAmount);
+
+        cdpId = _openCdpNoPermit(
+            _debt,
+            _upperHint,
+            _lowerHint,
+            _stEthLoanAmount,
+            0, // _stEthMarginAmount transferred above
+            _stEthDepositAmount,
+            _tradeData
+        );
+
+        emit ZapOperationEthVariant(
+            cdpId,
+            EthVariantZapOperationType.OpenCdp,
+            true,
+            address(stEth),
+            _stEthMarginAmount,
+            _collVal,
+            msg.sender
+        );
+    }
+
     function closeCdp(
         bytes32 _cdpId,
         PositionManagerPermit calldata _positionManagerPermit,

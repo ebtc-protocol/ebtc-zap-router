@@ -123,4 +123,14 @@ interface IEbtcLeverageZapRouter is IEbtcLeverageZapRouterBase {
         PositionManagerPermit calldata _positionManagerPermit,
         TradeData calldata _tradeData
     ) external;
+
+    function openCdpNoPermit(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _stEthLoanAmount,
+        uint256 _stEthMarginAmount,
+        uint256 _stEthDepositAmount,
+        TradeData calldata _tradeData
+    ) external returns (bytes32 cdpId);
 }

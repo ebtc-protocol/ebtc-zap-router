@@ -14,9 +14,8 @@ import {IPriceFeed} from "@ebtc/contracts/Interfaces/IPriceFeed.sol";
 import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
 import {IEbtcLeverageZapRouter, IEbtcLeverageZapRouterBase} from "../src/interface/IEbtcLeverageZapRouter.sol";
 import {IEbtcZapRouterBase} from "../src/interface/IEbtcZapRouterBase.sol";
-import {ConnectV2BadgerZapRouter} from "../src/connector/main.sol";
+import {ConnectorV2BadgerZapRouter} from "../src/connector/main.sol";
 import {IDSAAccount} from "../src/interface/IDSAAccount.sol";
-import {EbtcFlashLoanReceiver} from "../src/connector/EbtcFlashLoanReceiver.sol";
 
 interface IConnectorV2Registry {
     function addConnectors(string[] calldata _connectorNames, address[] calldata _connectors) external;
@@ -35,14 +34,14 @@ contract InstaDappForkTests is Test {
     address public testUser;
     uint256 public userPrivateKey;
     IConnectorV2Registry public connectorRegistry;
-    ConnectV2BadgerZapRouter public zapConnector;
+    ConnectorV2BadgerZapRouter public zapConnector;
     BorrowerOperations public borrowerOperations;
     IPriceFeed public priceFeed;
     IERC20 public collateral;
     IERC20 public eBTCToken;
     address public sortedCdps;
     Mock1Inch public mockDex;
-    EbtcFlashLoanReceiver public flashLoanReceiver;
+    EbtcLeverageZapRouter public zapRouter;
 
     function setUp() public {
 
@@ -71,26 +70,24 @@ contract InstaDappForkTests is Test {
         vm.prank(0xc8D45CC670c6485F70528976D65f7603160Be2CD);
         collateral.transfer(address(testDSA), 1e18);
 
-        flashLoanReceiver = new EbtcFlashLoanReceiver(
-            address(borrowerOperations),
-            0x6dBDB6D420c110290431E863A1A978AE53F69ebC, // activePool
-            0xc4cbaE499bb4Ca41E78f52F07f5d98c375711774, // cdpManager
-            address(eBTCToken),
-            address(collateral),
-            sortedCdps,
-            false // _sweepToCaller
-        );
+        zapRouter = new EbtcLeverageZapRouter(IEbtcLeverageZapRouterBase.DeploymentParams({
+            borrowerOperations: address(borrowerOperations),
+            activePool: 0x6dBDB6D420c110290431E863A1A978AE53F69ebC,
+            cdpManager: 0xc4cbaE499bb4Ca41E78f52F07f5d98c375711774,
+            ebtc: address(eBTCToken),
+            stEth: address(collateral),
+            weth: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+            wstEth: 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0,
+            sortedCdps: address(sortedCdps),
+            priceFeed: address(priceFeed),
+            dex: address(mockDex)
+        }));
 
-        zapConnector = new ConnectV2BadgerZapRouter(
-            address(flashLoanReceiver), 
+        zapConnector = new ConnectorV2BadgerZapRouter(
+            address(zapRouter), 
             address(borrowerOperations), 
-            address(collateral),
-            address(eBTCToken),
-            address(sortedCdps),
-            address(mockDex) //0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45
+            address(collateral)
         );
-
-        _addAuthUser(address(flashLoanReceiver));
 
         string[] memory connectorNames = new string[](1);
         address[] memory connectors = new address[](1);
@@ -116,57 +113,6 @@ contract InstaDappForkTests is Test {
         testDSA.cast(targetNames, datas, 0x03d70891b8994feB6ccA7022B25c32be92ee3725);
     }
 
-    function _createUserFromPrivateKey(
-        uint256 _privateKey
-    ) internal returns (address user) {
-        user = vm.addr(_privateKey);
-    }
-
-    function createPermit(
-        address target,
-        address user
-    ) internal returns (IEbtcZapRouter.PositionManagerPermit memory pmPermit) {
-        uint _deadline = (block.timestamp + deadline);
-        IPositionManagers.PositionManagerApproval _approval = IPositionManagers
-            .PositionManagerApproval
-            .OneTime;
-
-        vm.startPrank(user);
-
-        // Generate signature to one-time approve zap
-        bytes32 digest = _generatePermitSignature(user, target, _approval, _deadline);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivateKey, digest);
-
-        pmPermit = IEbtcZapRouterBase.PositionManagerPermit(_deadline, v, r, s);
-
-        vm.stopPrank();
-    }
-
-    function _generatePermitSignature(
-        address _signer,
-        address _positionManager,
-        IPositionManagers.PositionManagerApproval _approval,
-        uint _deadline
-    ) internal returns (bytes32) {
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                borrowerOperations.DOMAIN_SEPARATOR(),
-                keccak256(
-                    abi.encode(
-                        borrowerOperations.permitTypeHash(),
-                        _signer,
-                        _positionManager,
-                        _approval,
-                        borrowerOperations.nonces(_signer),
-                        _deadline
-                    )
-                )
-            )
-        );
-        return digest;
-    }
-
     function _getOpenCdpTradeData(uint256 _debt, uint256 expectedMinOut) 
         private returns (IEbtcLeverageZapRouter.TradeData memory) {
         return IEbtcLeverageZapRouterBase.TradeData({
@@ -187,25 +133,33 @@ contract InstaDappForkTests is Test {
     }
 
     function testLevCdpWithStEth() public {
-        string[] memory targetNames = new string[](1);
-        bytes[] memory datas = new bytes[](1);
+        string[] memory targetNames = new string[](3);
+        bytes[] memory datas = new bytes[](3);
 
         uint256 debt = 0.1e18;
         uint256 flAmount = _debtToCollateral(debt);
         uint256 marginAmount = 1 ether;
-
-//        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(address(zapRouter), testUser);
+        uint256 depositAmount = (flAmount + marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION;
 
         targetNames[0] = zapConnector.name();
+        targetNames[1] = zapConnector.name();
+        targetNames[2] = zapConnector.name();
+
         datas[0] = abi.encodeWithSelector(
+            zapConnector.setPositionManagerApproval.selector
+        );
+        datas[1] = abi.encodeWithSelector(
             zapConnector.openCdp.selector,
             debt,
             bytes32(0),
             bytes32(0),
             flAmount,
             marginAmount,
-            (flAmount + marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
+            depositAmount,
             _getOpenCdpTradeData(debt, flAmount)           
+        );
+        datas[2] = abi.encodeWithSelector(
+            zapConnector.revokePositionManagerApproval.selector
         );
 
         vm.prank(dsaOwner);

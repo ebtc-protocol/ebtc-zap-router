@@ -197,6 +197,38 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         borrowerOperations.renouncePositionManagerApproval(msg.sender);
     }
 
+    function _openCdpNoPermit(
+        uint256 _debt,
+        bytes32 _upperHint,
+        bytes32 _lowerHint,
+        uint256 _stEthLoanAmount,
+        uint256 _stEthMarginAmount,
+        uint256 _stEthDepositAmount,
+        TradeData calldata _tradeData
+    ) internal nonReentrant returns (bytes32 cdpId) {
+        
+        _requireZeroOrMinAdjustment(_debt);
+        _requireAtLeastMinNetStEthBalance(_stEthDepositAmount - LIQUIDATOR_REWARD);
+
+        cdpId = sortedCdps.toCdpId(msg.sender, block.number, sortedCdps.nextCdpNonce());
+
+        OpenCdpForOperation memory cdp;
+
+        cdp.eBTCToMint = _debt;
+        cdp._upperHint = _upperHint;
+        cdp._lowerHint = _lowerHint;
+        cdp.stETHToDeposit = _stEthDepositAmount;
+        cdp.borrower = msg.sender;
+
+        _openCdpOperation({
+            _cdpId: cdpId,
+            _cdp: cdp,
+            _flAmount: _stEthLoanAmount,
+            _stEthBalance: _stEthMarginAmount,
+            _tradeData: _tradeData
+        });
+    }
+
     function _closeCdpOperation(
         bytes32 _cdpId,
         uint256 _debt,
