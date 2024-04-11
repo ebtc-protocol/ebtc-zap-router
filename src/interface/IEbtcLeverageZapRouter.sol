@@ -13,7 +13,6 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         address weth;
         address wstEth;
         address sortedCdps;
-        address priceFeed;
         address dex;
     }
 

@@ -46,6 +46,7 @@ abstract contract ZapRouterStateSnapshots is ZapRouterBaseStorageVariables {
         uint256 stEthBalance;
         uint256 wstEthBalance;
         uint256 eBTCBalance;
+        uint256 collShares;
     }
 
     EbtcState ebtcBefore;

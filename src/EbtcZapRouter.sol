@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import {ICdpManagerData} from "@ebtc/contracts/interfaces/ICdpManagerData.sol";
-import {ICdpManager} from "@ebtc/contracts/interfaces/ICdpManager.sol";
+import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManagerData.sol";
+import {ICdpManager} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {SafeERC20} from "@ebtc/contracts/Dependencies/SafeERC20.sol";

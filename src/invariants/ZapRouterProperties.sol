@@ -10,11 +10,10 @@ abstract contract ZapRouterProperties is
     ZapRouterPropertiesDescriptions,
     Asserts
 {
+    uint256 public constant MAX_COLL_ROUNDING_ERROR = 2;
+
     function echidna_ZR_01() public returns (bool) {
-        return
-            (collateral.sharesOf(address(zapRouter)) == 0) &&
-            (collateral.balanceOf(address(zapRouter)) == 0) &&
-            (eBTCToken.balanceOf(address(zapRouter)) == 0);
+        return eBTCToken.balanceOf(address(zapRouter)) == 0;
     }
 
     function echidna_ZR_02() public returns (bool) {
