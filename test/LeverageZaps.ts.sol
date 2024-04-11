@@ -173,8 +173,6 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
 
-        vm.startPrank(user);
-
         ICdpManagerData.Cdp memory cdpInfo = ICdpCdps(address(cdpManager)).Cdps(cdpId);
         uint256 flashFee = IERC3156FlashLender(address(borrowerOperations)).flashFee(
             address(eBTCToken),
@@ -184,11 +182,34 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         uint256 _maxSlippage = 10050; // 0.5% slippage
 
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.active));
+        
+        uint256 flAmount = _debtToCollateral(cdpInfo.debt + flashFee);
+
+        vm.startPrank(vm.addr(0x11111));
+        vm.expectRevert("EbtcLeverageZapRouter: not owner for close!");
+        leverageZapRouter.closeCdp(
+            cdpId,
+            pmPermit,
+            (flAmount * _maxSlippage) / SLIPPAGE_PRECISION, 
+            IEbtcLeverageZapRouter.TradeData({
+                performSwapChecks: true,
+                expectedMinOut: 0,
+                exchangeData: abi.encodeWithSelector(
+                    mockDex.swapExactOut.selector,
+                    address(collateral),
+                    address(eBTCToken),
+                    cdpInfo.debt + flashFee
+                )
+            })
+        );
+        vm.stopPrank();
+
+        vm.startPrank(user);
 
         leverageZapRouter.closeCdp(
             cdpId,
             pmPermit,
-            (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION, 
+            (flAmount * _maxSlippage) / SLIPPAGE_PRECISION, 
             IEbtcLeverageZapRouter.TradeData({
                 performSwapChecks: true,
                 expectedMinOut: 0,
@@ -256,19 +277,50 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
 
-        vm.startPrank(user);
-
         (uint256 debtBefore, uint256 collBefore) = cdpManager.getSyncedDebtAndCollShares(cdpId);
         uint256 icrBefore = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
 
         uint256 debtChange = 0.1e18;
         uint256 collValue = _debtToCollateral(debtChange) * 9995 / 10000;
         uint256 stBalBefore = collateral.balanceOf(user);
+        uint256 flAmount = _debtToCollateral(debtChange);
+
+        vm.startPrank(vm.addr(0x11111));
+        vm.expectRevert("EbtcLeverageZapRouter: not owner for adjust!");
+        leverageZapRouter.adjustCdp(
+            cdpId, 
+            IEbtcLeverageZapRouter.AdjustCdpParams({
+                flashLoanAmount: flAmount,
+                debtChange: debtChange,
+                isDebtIncrease: true,
+                upperHint: bytes32(0),
+                lowerHint: bytes32(0),
+                stEthBalanceChange: collValue,
+                isStEthBalanceIncrease: true,
+                stEthMarginBalance: 0.5e18,
+                isStEthMarginIncrease: true,
+                useWstETHForDecrease: false
+            }), 
+            pmPermit, 
+            IEbtcLeverageZapRouter.TradeData({
+                performSwapChecks: false,
+                expectedMinOut: 0,
+                exchangeData: abi.encodeWithSelector(
+                    mockDex.swap.selector,
+                    address(eBTCToken),
+                    address(collateral),
+                    debtChange // Debt amount
+                )
+            })
+        );
+        vm.stopPrank();
+
+        vm.startPrank(user);
 
         leverageZapRouter.adjustCdp(
             cdpId, 
             IEbtcLeverageZapRouter.AdjustCdpParams({
-                flashLoanAmount: _debtToCollateral(debtChange),
+                flashLoanAmount: flAmount,
                 debtChange: debtChange,
                 isDebtIncrease: true,
                 upperHint: bytes32(0),

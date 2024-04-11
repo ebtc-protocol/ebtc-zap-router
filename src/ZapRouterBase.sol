@@ -145,4 +145,9 @@ abstract contract ZapRouterBase is IEbtcZapRouterBase {
             "ZapRouterBase: Cdp's net stEth balance must not fall below minimum"
         );
     }
+
+    function _getOwnerAddress(bytes32 cdpId) internal pure returns (address) {
+        uint256 _tmp = uint256(cdpId) >> 96;
+        return address(uint160(_tmp));
+    }
 }

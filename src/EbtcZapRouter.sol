@@ -545,11 +545,6 @@ contract EbtcZapRouter is ZapRouterBase, IEbtcZapRouter {
         }
     }
 
-    function _getOwnerAddress(bytes32 cdpId) internal pure returns (address) {
-        uint256 _tmp = uint256(cdpId) >> 96;
-        return address(uint160(_tmp));
-    }
-
     function _requireNonZeroAdjustment(
         uint256 _stEthBalanceIncrease,
         uint256 _stEthBalanceDecrease,
