@@ -160,14 +160,17 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         uint256 _stEthLoanAmount,
         uint256 _stEthMarginAmount,
         uint256 _stEthDepositAmount,
-        PositionManagerPermit calldata _positionManagerPermit,
+        bytes calldata _positionManagerPermit,
         TradeData calldata _tradeData
     ) internal nonReentrant returns (bytes32 cdpId) {
         
         _requireZeroOrMinAdjustment(_debt);
         _requireAtLeastMinNetStEthBalance(_stEthDepositAmount - LIQUIDATOR_REWARD);
 
-        _permitPositionManagerApproval(msg.sender, borrowerOperations, _positionManagerPermit);
+        if (_positionManagerPermit.length > 0) {
+            PositionManagerPermit memory approval = abi.decode(_positionManagerPermit, (PositionManagerPermit));
+            _permitPositionManagerApproval(msg.sender, borrowerOperations, approval);
+        }
 
         cdpId = sortedCdps.toCdpId(msg.sender, block.number, sortedCdps.nextCdpNonce());
 
@@ -187,39 +190,9 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
             _tradeData: _tradeData
         });
 
-        borrowerOperations.renouncePositionManagerApproval(msg.sender);
-    }
-
-    function _openCdpNoPermit(
-        uint256 _debt,
-        bytes32 _upperHint,
-        bytes32 _lowerHint,
-        uint256 _stEthLoanAmount,
-        uint256 _stEthMarginAmount,
-        uint256 _stEthDepositAmount,
-        TradeData calldata _tradeData
-    ) internal nonReentrant returns (bytes32 cdpId) {
-        
-        _requireZeroOrMinAdjustment(_debt);
-        _requireAtLeastMinNetStEthBalance(_stEthDepositAmount - LIQUIDATOR_REWARD);
-
-        cdpId = sortedCdps.toCdpId(msg.sender, block.number, sortedCdps.nextCdpNonce());
-
-        OpenCdpForOperation memory cdp;
-
-        cdp.eBTCToMint = _debt;
-        cdp._upperHint = _upperHint;
-        cdp._lowerHint = _lowerHint;
-        cdp.stETHToDeposit = _stEthDepositAmount;
-        cdp.borrower = msg.sender;
-
-        _openCdpOperation({
-            _cdpId: cdpId,
-            _cdp: cdp,
-            _flAmount: _stEthLoanAmount,
-            _stEthBalance: _stEthMarginAmount,
-            _tradeData: _tradeData
-        });
+        if (_positionManagerPermit.length > 0) {
+            borrowerOperations.renouncePositionManagerApproval(msg.sender);
+        }
     }
 
     function _closeCdpOperation(

@@ -87,7 +87,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             _flAmount,
             _marginAmount, // Margin amount
             (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
-            pmPermit,
+            abi.encode(pmPermit),
             _getOpenCdpTradeData(_debt, _flAmount)
         );
     }
@@ -165,7 +165,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         vm.expectRevert("EbtcLeverageZapRouter: not owner for close!");
         leverageZapRouter.closeCdp(
             cdpId,
-            pmPermit,
+            abi.encode(pmPermit),
             (flAmount * _maxSlippage) / SLIPPAGE_PRECISION, 
             IEbtcLeverageZapRouterBase.TradeData({
                 performSwapChecks: true,
@@ -184,7 +184,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         leverageZapRouter.closeCdp(
             cdpId,
-            pmPermit,
+            abi.encode(pmPermit),
             (flAmount * _maxSlippage) / SLIPPAGE_PRECISION, 
             IEbtcLeverageZapRouterBase.TradeData({
                 performSwapChecks: true,
@@ -227,7 +227,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         leverageZapRouter.closeCdp(
             cdpId,
-            pmPermit,
+            abi.encode(pmPermit),
             (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION, 
             IEbtcLeverageZapRouterBase.TradeData({
                 performSwapChecks: true,
@@ -277,7 +277,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 isStEthMarginIncrease: true,
                 useWstETHForDecrease: false
             }), 
-            pmPermit, 
+            abi.encode(pmPermit), 
             IEbtcLeverageZapRouterBase.TradeData({
                 performSwapChecks: false,
                 expectedMinOut: 0,
@@ -307,7 +307,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 isStEthMarginIncrease: true,
                 useWstETHForDecrease: false
             }), 
-            pmPermit, 
+            abi.encode(pmPermit), 
             IEbtcLeverageZapRouterBase.TradeData({
                 performSwapChecks: false,
                 expectedMinOut: 0,
@@ -367,7 +367,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 isStEthMarginIncrease: false,
                 useWstETHForDecrease: false
             }), 
-            pmPermit,
+            abi.encode(pmPermit),
             IEbtcLeverageZapRouterBase.TradeData({
                 performSwapChecks: false,
                 expectedMinOut: 0,

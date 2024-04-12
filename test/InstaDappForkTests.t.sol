@@ -9,6 +9,8 @@ import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {Mock1Inch} from "@ebtc/contracts/TestContracts/Mock1Inch.sol";
 import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {BorrowerOperations} from "@ebtc/contracts/BorrowerOperations.sol";
+import {CdpManager} from "@ebtc/contracts/CdpManager.sol";
+import {SortedCdps} from "@ebtc/contracts/SortedCdps.sol";
 import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {IPriceFeed} from "@ebtc/contracts/Interfaces/IPriceFeed.sol";
 import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
@@ -36,10 +38,11 @@ contract InstaDappForkTests is Test {
     IConnectorV2Registry public connectorRegistry;
     ConnectorV2BadgerZapRouter public zapConnector;
     BorrowerOperations public borrowerOperations;
+    CdpManager public cdpManager;
     IPriceFeed public priceFeed;
     IERC20 public collateral;
     IERC20 public eBTCToken;
-    address public sortedCdps;
+    SortedCdps public sortedCdps;
     Mock1Inch public mockDex;
     EbtcLeverageZapRouter public zapRouter;
 
@@ -52,9 +55,10 @@ contract InstaDappForkTests is Test {
         connectorRegistry = IConnectorV2Registry(0x97b0B3A8bDeFE8cB9563a3c610019Ad10DB8aD11);
         collateral = IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
         eBTCToken = IERC20(0x661c70333AA1850CcDBAe82776Bb436A0fCfeEfB);
-        sortedCdps = 0x591AcB5AE192c147948c12651a0a5f24f0529BE3;
+        sortedCdps = SortedCdps(0x591AcB5AE192c147948c12651a0a5f24f0529BE3);
         priceFeed = IPriceFeed(0xa9a65B1B1dDa8376527E89985b221B6bfCA1Dc9a);
         borrowerOperations = BorrowerOperations(0xd366e016Ae0677CdCE93472e603b75051E022AD0);
+        cdpManager = CdpManager(0xc4cbaE499bb4Ca41E78f52F07f5d98c375711774);
         testDSA = IDSAAccount(0x66Ac88DC71F3d8D1dD7E8572BCE70b25C5895C29);
         dsaOwner = 0x6Eb9d3dc07d5a10c3a0B561A6a375536F322def4;
 
@@ -73,7 +77,7 @@ contract InstaDappForkTests is Test {
         zapRouter = new EbtcLeverageZapRouter(IEbtcLeverageZapRouterBase.DeploymentParams({
             borrowerOperations: address(borrowerOperations),
             activePool: 0x6dBDB6D420c110290431E863A1A978AE53F69ebC,
-            cdpManager: 0xc4cbaE499bb4Ca41E78f52F07f5d98c375711774,
+            cdpManager: address(cdpManager),
             ebtc: address(eBTCToken),
             stEth: address(collateral),
             weth: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
@@ -131,7 +135,7 @@ contract InstaDappForkTests is Test {
         return (_debt * 1e18) / price;
     }
 
-    function testLevCdpWithStEth() public {
+    function testOpenLevCdpWithStEth() public {
         string[] memory targetNames = new string[](3);
         bytes[] memory datas = new bytes[](3);
 
@@ -155,7 +159,9 @@ contract InstaDappForkTests is Test {
             flAmount,
             marginAmount,
             depositAmount,
-            _getOpenCdpTradeData(debt, flAmount)           
+            _getOpenCdpTradeData(debt, flAmount),
+            0,
+            0        
         );
         datas[2] = abi.encodeWithSelector(
             zapConnector.revokePositionManagerApproval.selector
@@ -163,5 +169,56 @@ contract InstaDappForkTests is Test {
 
         vm.prank(dsaOwner);
         testDSA.cast(targetNames, datas, 0x03d70891b8994feB6ccA7022B25c32be92ee3725);
+    }
+
+    function testCloseLevCdp() public {
+        testOpenLevCdpWithStEth();
+
+        bytes32 cdpId = sortedCdps.toCdpId(address(testDSA), block.number, sortedCdps.nextCdpNonce() - 1);
+
+        uint256 debt = cdpManager.getSyncedCdpDebt(cdpId);
+        uint256 flashFee = IERC3156FlashLender(address(borrowerOperations)).flashFee(
+            address(eBTCToken),
+            debt
+        );
+
+        uint256 _maxSlippage = 10050; // 0.5% slippage
+
+        assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.active));
+        
+        uint256 flAmount = _debtToCollateral(debt + flashFee);
+        string[] memory targetNames = new string[](3);
+        bytes[] memory datas = new bytes[](3);
+
+        targetNames[0] = zapConnector.name();
+        targetNames[1] = zapConnector.name();
+        targetNames[2] = zapConnector.name();
+
+        datas[0] = abi.encodeWithSelector(
+            zapConnector.setPositionManagerApproval.selector
+        );
+        datas[1] = abi.encodeWithSelector(
+            zapConnector.closeCdp.selector,
+            cdpId,
+            (flAmount * _maxSlippage) / SLIPPAGE_PRECISION, 
+            IEbtcLeverageZapRouterBase.TradeData({
+                performSwapChecks: true,
+                expectedMinOut: 0,
+                exchangeData: abi.encodeWithSelector(
+                    mockDex.swapExactOut.selector,
+                    address(collateral),
+                    address(eBTCToken),
+                    debt + flashFee
+                )
+            }),
+            0,
+            0     
+        );
+        datas[2] = abi.encodeWithSelector(
+            zapConnector.revokePositionManagerApproval.selector
+        );
+
+        vm.prank(dsaOwner);
+        testDSA.cast(targetNames, datas, 0x03d70891b8994feB6ccA7022B25c32be92ee3725);        
     }
 }

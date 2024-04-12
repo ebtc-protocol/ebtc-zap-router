@@ -50,19 +50,43 @@ abstract contract BadgerZapRouter is Helpers, Events, Stores {
     ) external returns (string memory _eventName, bytes memory _eventParam) {
         stETH.approve(address(zapRouter), _stEthDepositAmount);
 
-        bytes32 cdpId = zapRouter.openCdpNoPermit(
+        bytes32 cdpId = zapRouter.openCdp(
             _debt, 
             _upperHint, 
             _lowerHint, 
             _stEthLoanAmount, 
             _stEthMarginAmount, 
             _stEthDepositAmount, 
+            "", // PM approval
             _tradeData
         );
 
         setUint(setId, uint256(cdpId));
 
         stETH.approve(address(zapRouter), 0);
+
+        /// TODO: set eventName/eventParam properly
+    }
+
+    function closeCdp(
+        bytes32 _cdpId,
+        uint256 _stEthAmount,
+        IEbtcLeverageZapRouter.TradeData calldata _tradeData,
+        uint256 getId,
+        uint256 setId
+    ) external returns (string memory _eventName, bytes memory _eventParam) {
+        _cdpId = bytes32(getUint(getId, uint256(_cdpId)));
+
+        zapRouter.closeCdp(
+            _cdpId,
+            "", // PM approval
+            _stEthAmount,
+            _tradeData
+        );
+
+        setUint(setId, uint256(_cdpId));
+        
+        /// TODO: set eventName/eventParam properly
     }
 
     function revokePositionManagerApproval() external {
