@@ -5,9 +5,9 @@ import "@crytic/properties/contracts/util/Hevm.sol";
 import {TargetContractSetup} from "@ebtc/contracts/TestContracts/invariants/TargetContractSetup.sol";
 import {CollateralTokenTester} from "@ebtc/contracts/TestContracts/CollateralTokenTester.sol";
 import {Mock1Inch} from "@ebtc/contracts/TestContracts/Mock1Inch.sol";
-import {ICdpManager} from "@ebtc/contracts/interfaces/ICdpManager.sol";
-import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
-import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
+import {ICdpManager} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
+import {IBorrowerOperations} from "@ebtc/contracts/Interfaces/IBorrowerOperations.sol";
+import {IPositionManagers} from "@ebtc/contracts/Interfaces/IPositionManagers.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {WETH9} from "@ebtc/contracts/TestContracts/WETH9.sol";
 import {IERC3156FlashLender} from "@ebtc/contracts/Interfaces/IERC3156FlashLender.sol";
@@ -46,7 +46,6 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 weth: address(testWeth),
                 wstEth: address(testWstEth),
                 sortedCdps: address(sortedCdps),
-                priceFeed: address(priceFeedMock),
                 dex: address(mockDex)
             })
         );
@@ -107,6 +106,8 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         if (_marginAmount > MAXIMUM_COLL - flAmount) {
             _marginAmount = MAXIMUM_COLL - flAmount;
         }
+
+        require(_marginAmount <= collateral.balanceOf(zapActor.sender()));
 
         _seedActivePoolAndDex(flAmount);
 
