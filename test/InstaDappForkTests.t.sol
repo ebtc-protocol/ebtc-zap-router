@@ -221,4 +221,12 @@ contract InstaDappForkTests is Test {
         vm.prank(dsaOwner);
         testDSA.cast(targetNames, datas, 0x03d70891b8994feB6ccA7022B25c32be92ee3725);        
     }
+
+    function testAdjustLevCdpIncreaseDebt() public {
+
+    }
+
+    function testAdjustLevCdpDecreaseDebt() public {
+        
+    }
 }

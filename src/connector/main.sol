@@ -85,7 +85,28 @@ abstract contract BadgerZapRouter is Helpers, Events, Stores {
         );
 
         setUint(setId, uint256(_cdpId));
-        
+
+        /// TODO: set eventName/eventParam properly
+    }
+
+    function adjustCdp(
+        bytes32 _cdpId,
+        IEbtcLeverageZapRouter.AdjustCdpParams calldata params,
+        IEbtcLeverageZapRouter.TradeData calldata _tradeData,
+        uint256 getId,
+        uint256 setId
+    ) external returns (string memory _eventName, bytes memory _eventParam) {
+        _cdpId = bytes32(getUint(getId, uint256(_cdpId)));
+
+        zapRouter.adjustCdp(
+            _cdpId,
+            params,
+            "", // PM approval
+            _tradeData
+        );
+
+        setUint(setId, uint256(_cdpId));
+
         /// TODO: set eventName/eventParam properly
     }
 

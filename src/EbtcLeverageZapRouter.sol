@@ -183,12 +183,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         bool _useWstETH,
         IEbtcLeverageZapRouter.TradeData calldata _tradeData
     ) internal nonReentrant {
-        if (borrowerOperations.getPositionManagerApproval(
-                msg.sender, 
-                address(this)
-            ) == IPositionManagers.PositionManagerApproval.None) {
-            require(msg.sender == _getOwnerAddress(_cdpId), "EbtcLeverageZapRouter: not owner for close!");
-        }
+        require(msg.sender == _getOwnerAddress(_cdpId), "EbtcLeverageZapRouter: not owner for close!");
 
         uint256 debt = ICdpManager(address(cdpManager)).getSyncedCdpDebt(_cdpId);
 
@@ -265,12 +260,8 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         bytes calldata _positionManagerPermit,
         TradeData calldata _tradeData
     ) internal nonReentrant {
-        if (borrowerOperations.getPositionManagerApproval(
-                msg.sender, 
-                address(this)
-            ) == IPositionManagers.PositionManagerApproval.None) {
-            require(msg.sender == _getOwnerAddress(_cdpId), "EbtcLeverageZapRouter: not owner for adjust!");
-        }
+        require(msg.sender == _getOwnerAddress(_cdpId), "EbtcLeverageZapRouter: not owner for adjust!");
+
         _requireMinAdjustment(params.debtChange);
         _requireMinAdjustment(params.stEthBalanceChange);
         _requireZeroOrMinAdjustment(params.stEthMarginBalance);

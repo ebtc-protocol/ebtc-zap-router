@@ -19,4 +19,11 @@ import {IDSAAccount} from "../src/interface/IDSAAccount.sol";
 
 contract DeFiSaverForkTests is Test {
 
+    function setUp() public {
+        
+    }
+
+    function testOpenLevCdpWithStEth() public {
+
+    }
 }
