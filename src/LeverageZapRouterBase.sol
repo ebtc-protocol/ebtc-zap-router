@@ -15,7 +15,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
     uint256 internal constant PRECISION = 1e18;
 
     address internal immutable theOwner;
-    address internal immutable dex;
+    address internal immutable DEX;
 
     constructor(
         IEbtcLeverageZapRouter.DeploymentParams memory params
@@ -36,8 +36,8 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
             false // Do not sweep
         )
     {
-        theOwner = msg.sender;
-        dex = params.dex;
+        theOwner = params.owner;
+        DEX = params.dex;
 
         // Infinite Approvals @TODO: do these stay at max for each token?
         ebtcToken.approve(address(borrowerOperations), type(uint256).max);
@@ -198,9 +198,9 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
 
         swaps[0].tokenForSwap = _tokenIn;
         // TODO: approve target maybe different
-        swaps[0].addressForApprove = dex;
+        swaps[0].addressForApprove = DEX;
         swaps[0].exactApproveAmount = _exactApproveAmount;
-        swaps[0].addressForSwap = dex;
+        swaps[0].addressForSwap = DEX;
         swaps[0].calldataForSwap = _tradeData.exchangeData;
         if (_tradeData.performSwapChecks) {
             swaps[0].swapChecks = _getSwapChecks(_tokenOut, _tradeData.expectedMinOut);            
