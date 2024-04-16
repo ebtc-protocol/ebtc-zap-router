@@ -164,7 +164,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 _flAmount,
                 _marginAmount,
                 _totalAmount,
-                pmPermit,
+                abi.encode(pmPermit),
                 _encodeOpenTrade(_debt)
             );
     }
@@ -210,7 +210,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             abi.encodeWithSelector(
                 IEbtcLeverageZapRouter.closeCdp.selector,
                 _cdpId,
-                pmPermit,
+                abi.encode(pmPermit),
                 (_debtToCollateral(debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION,
                 abi.encodeWithSelector(
                     mockDex.swapExactOut.selector,
@@ -327,7 +327,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                     isStEthMarginIncrease: true,
                     useWstETHForDecrease: false
                 }),
-                pmPermit,
+                abi.encode(pmPermit),
                 abi.encodeWithSelector(
                     mockDex.swap.selector,
                     address(eBTCToken),
@@ -369,7 +369,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                     isStEthMarginIncrease: false,
                     useWstETHForDecrease: false
                 }),
-                pmPermit,
+                abi.encode(pmPermit),
                 abi.encodeWithSelector(
                     mockDex.swap.selector,
                     address(collateral),
