@@ -39,7 +39,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _upperHint,
             _lowerHint,
             _stEthLoanAmount,
-            _collVal,
+            0, // _stEthMarginAmount transferred above
             _stEthDepositAmount,
             _positionManagerPermit,
             _tradeData
@@ -73,7 +73,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _upperHint,
             _lowerHint,
             _stEthLoanAmount,
-            _collVal,
+            0, // _stEthMarginAmount transferred above
             _stEthDepositAmount,
             _positionManagerPermit,
             _tradeData
@@ -107,7 +107,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _upperHint,
             _lowerHint,
             _stEthLoanAmount,
-            _collVal,
+            0, // _stEthMarginAmount transferred above
             _stEthDepositAmount,
             _positionManagerPermit,
             _tradeData
