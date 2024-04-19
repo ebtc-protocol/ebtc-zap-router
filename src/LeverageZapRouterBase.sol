@@ -43,6 +43,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         ebtcToken.approve(address(borrowerOperations), type(uint256).max);
         stETH.approve(address(borrowerOperations), type(uint256).max);
         stETH.approve(address(activePool), type(uint256).max);
+        stEth.approve(address(wstEth), type(uint256).max);
     }
 
     function owner() public override returns (address) {

@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {EbtcZapRouter} from "../src/EbtcZapRouter.sol";
+import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {ZapRouterBaseInvariants} from "./ZapRouterBaseInvariants.sol";
 import {IERC3156FlashLender} from "@ebtc/contracts/Interfaces/IERC3156FlashLender.sol";
 import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/LeverageMacroBase.sol";
@@ -225,6 +226,53 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         vm.stopPrank();
 
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.closedByOwner));
+    }
+
+    function test_ZapCloseCdp_WithWstEth_LowLeverage() public {
+        seedActivePool();
+
+        (address user, bytes32 cdpId) = createLeveragedPosition();
+
+        IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
+
+        vm.prank(user);
+        collateral.transfer(address(leverageZapRouter), 1);
+
+        vm.startPrank(user);
+
+        ICdpManagerData.Cdp memory cdpInfo = ICdpCdps(address(cdpManager)).Cdps(cdpId);
+        uint256 flashFee = IERC3156FlashLender(address(borrowerOperations)).flashFee(
+            address(eBTCToken),
+            cdpInfo.debt
+        );
+        
+        uint256 _maxSlippage = 10050; // 0.5% slippage
+
+        assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.active));
+        uint256 _stETHValBefore = IERC20(address(testWstEth)).balanceOf(user);
+
+        leverageZapRouter.closeCdpForWstETH(
+            cdpId,
+            pmPermit,
+            (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION, 
+            IEbtcLeverageZapRouter.TradeData({
+                performSwapChecks: true,
+                expectedMinOut: 0,
+                exchangeData: abi.encodeWithSelector(
+                    mockDex.swapExactOut.selector,
+                    address(collateral),
+                    address(eBTCToken),
+                    cdpInfo.debt + flashFee
+                )
+            })
+        );
+
+        assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.closedByOwner));
+
+        uint256 _stETHValAfter = IERC20(address(testWstEth)).balanceOf(user);
+        assertEq(_stETHValAfter - _stETHValBefore, 4986729940764674205);
+
+        vm.stopPrank();
     }
 
     function test_ZapCloseCdpWithDonation_WithStEth_LowLeverage() public {
