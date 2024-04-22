@@ -142,7 +142,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 bytes32(0),
                 _flAmount,
                 _marginAmount, // Margin amount
-                _flAmount * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
+                (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
                 pmPermit,
                 _getOpenCdpTradeData(_debt, _flAmount)
             );
@@ -153,7 +153,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 bytes32(0),
                 _flAmount,
                 _marginAmount, // Margin amount
-                _flAmount * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
+                (_flAmount + IWstETH(testWstEth).getStETHByWstETH(_marginAmount)) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
                 pmPermit,
                 _getOpenCdpTradeData(_debt, _flAmount)
             );
@@ -164,7 +164,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 bytes32(0),
                 _flAmount,
                 _marginAmount, // Margin amount
-                _flAmount * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
+                (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
                 pmPermit,
                 _getOpenCdpTradeData(_debt, _flAmount)
             );
@@ -175,7 +175,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 bytes32(0),
                 _flAmount,
                 _marginAmount, // Margin amount
-                _flAmount * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
+                (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
                 pmPermit,
                 _getOpenCdpTradeData(_debt, _flAmount)
             );
@@ -445,7 +445,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.closedByOwner));
 
         uint256 _stETHValAfter = IERC20(address(testWstEth)).balanceOf(user);
-        assertEq(_stETHValAfter - _stETHValBefore, 4989229940764674205);
+        assertEq(_stETHValAfter - _stETHValBefore, 4986729940764674205);
 
         vm.stopPrank();
     }

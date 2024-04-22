@@ -189,7 +189,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         cdp.eBTCToMint = _debt;
         cdp._upperHint = _upperHint;
         cdp._lowerHint = _lowerHint;
-        cdp.stETHToDeposit = _stEthDepositAmount + _stEthMarginAmount;
+        cdp.stETHToDeposit = _stEthDepositAmount;
         cdp.borrower = msg.sender;
 
         _openCdpOperation({
