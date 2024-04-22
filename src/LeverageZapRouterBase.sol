@@ -95,7 +95,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
             op.swapsAfter = _getSwapOperations(
                 address(ebtcToken), 
                 address(stETH),
-                _cdp._EBTCChange, 
                 _tradeData
             );
         } else {
@@ -104,7 +103,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
                 op.swapsAfter = _getSwapOperations(
                     address(stETH),
                     address(ebtcToken),
-                    _cdp._stEthBalanceDecrease,
                     _tradeData
                 );
             }
@@ -135,7 +133,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         op.amountToTransferIn = _stEthBalance;
         op.operationType = OperationType.OpenCdpForOperation;
         op.OperationData = abi.encode(_cdp);
-        op.swapsAfter = _getSwapOperations(address(ebtcToken), address(stETH), _cdp.eBTCToMint, _tradeData);
+        op.swapsAfter = _getSwapOperations(address(ebtcToken), address(stETH), _tradeData);
 
         uint256 ebtcBalBefore = ebtcToken.balanceOf(address(this));
         _doOperation(
@@ -173,7 +171,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         op.swapsAfter = _getSwapOperations(
             address(stETH),
             address(ebtcToken),
-            _stEthAmount,
             _tradeData
         );
 
@@ -192,7 +189,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
     function _getSwapOperations(
         address _tokenIn,
         address _tokenOut,
-        uint256 _exactApproveAmount,
         TradeData calldata _tradeData
     ) internal view returns (SwapOperation[] memory swaps) {
         swaps = new SwapOperation[](1);
@@ -200,7 +196,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         swaps[0].tokenForSwap = _tokenIn;
         // TODO: approve target maybe different
         swaps[0].addressForApprove = DEX;
-        swaps[0].exactApproveAmount = _exactApproveAmount;
+        swaps[0].exactApproveAmount = _tradeData.approvalAmount;
         swaps[0].addressForSwap = DEX;
         swaps[0].calldataForSwap = _tradeData.exchangeData;
         if (_tradeData.performSwapChecks) {

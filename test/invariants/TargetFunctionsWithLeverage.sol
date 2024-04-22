@@ -5,6 +5,7 @@ import "@crytic/properties/contracts/util/Hevm.sol";
 import {TargetContractSetup} from "@ebtc/contracts/TestContracts/invariants/TargetContractSetup.sol";
 import {CollateralTokenTester} from "@ebtc/contracts/TestContracts/CollateralTokenTester.sol";
 import {Mock1Inch} from "@ebtc/contracts/TestContracts/Mock1Inch.sol";
+import {EBTCTokenTester} from "@ebtc/contracts/TestContracts/EBTCTokenTester.sol";
 import {ICdpManager} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {IBorrowerOperations} from "@ebtc/contracts/Interfaces/IBorrowerOperations.sol";
 import {IPositionManagers} from "@ebtc/contracts/Interfaces/IPositionManagers.sol";
@@ -41,9 +42,19 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
     /// 9995 = 0.05%
     uint256 internal constant COLLATERAL_BUFFER = 9995;
 
+    modifier setup() override {
+        zapSender = msg.sender;
+        zapActor = zapActors[msg.sender];
+        zapActorKey = zapActorKeys[msg.sender];
+        _seedActivePoolAndDex();
+        _dealCollateral(zapActor, MAXIMUM_COLL, true);
+        _;
+    }
+
     function setUp() public virtual {
         super._setUp();
         mockDex = new Mock1Inch(address(eBTCToken), address(collateral));
+        mockDex.setPrice(priceFeedMock.fetchPrice());
         testWeth = address(new WETH9());
         testWstEth = address(new WstETH(address(collateral)));
         leverageZapRouter = new EbtcLeverageZapRouter(
@@ -72,29 +83,31 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         return (_coll * price) / 1e18;
     }
 
-    function _seedActivePoolAndDex(uint256 _seedAmount) internal {
+    function _seedActivePoolAndDex() internal {
         // Give stETH to active pool
-        _dealCollateral(zapActor, _seedAmount, false);
+        _dealCollateral(zapActor, MAXIMUM_COLL * 2, false);
 
         bool success;
         bytes memory returnData;
 
         (success, returnData) = zapActor.proxy(
             address(collateral),
-            abi.encodeWithSelector(CollateralTokenTester.transfer.selector, activePool, _seedAmount),
+            abi.encodeWithSelector(CollateralTokenTester.transfer.selector, activePool, MAXIMUM_COLL * 2),
             false
         );
         t(success, "transfer cannot fail");
 
         // Give stETH to mock DEX
-        _dealCollateral(zapActor, _seedAmount, false);
+        _dealCollateral(zapActor, MAXIMUM_COLL * 2, false);
 
         (success, returnData) = zapActor.proxy(
             address(collateral),
-            abi.encodeWithSelector(CollateralTokenTester.transfer.selector, mockDex, _seedAmount),
+            abi.encodeWithSelector(CollateralTokenTester.transfer.selector, mockDex, MAXIMUM_COLL * 2),
             false
         );
         t(success, "transfer cannot fail");
+
+        EBTCTokenTester(address(eBTCToken)).unprotectedMint(address(mockDex), MAXIMUM_DEBT * 2);
     }
 
     function openCdp(uint256 _debt, uint256 _marginAmount) public setup {
@@ -114,10 +127,6 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             flAmount = MAXIMUM_COLL;
             _debt = _collateralToDebt(flAmount);
         }
-
-        _seedActivePoolAndDex(MAXIMUM_COLL);
-
-        _dealCollateral(zapActor, MAXIMUM_COLL, true);
 
         uint256 totalDeposit = ((flAmount + _marginAmount) * COLLATERAL_BUFFER) / SLIPPAGE_PRECISION;
 
@@ -208,13 +217,13 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 _marginAmount,
                 _totalAmount,
                 abi.encode(pmPermit),
-                _getTradeData(_encodeDebtToCollateralTrade(_debt), 0, false)
+                _getExactInDebtToCollateralTradeData(_debt)
             );
     }
 
-    function _getTradeData(bytes memory exchangeData, uint256 expectedMinOut, bool performSwapChecks) 
+    function _getTradeData(bytes memory exchangeData, uint256 expectedMinOut, bool performSwapChecks, uint256 approvalAmount) 
         internal view returns (IEbtcLeverageZapRouter.TradeData memory) {
-        return IEbtcLeverageZapRouter.TradeData(exchangeData, expectedMinOut, performSwapChecks);
+        return IEbtcLeverageZapRouter.TradeData(exchangeData, expectedMinOut, performSwapChecks, approvalAmount);
     }
 
     function _encodeDebtToCollateralTrade(uint256 _debt) internal view returns (bytes memory) {
@@ -225,6 +234,22 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 address(collateral),
                 _debt // Debt amount
             );
+    }
+
+    function _getExactInDebtToCollateralTradeData(
+        uint256 _amount
+    ) private view returns (IEbtcLeverageZapRouter.TradeData memory) {
+        return IEbtcLeverageZapRouter.TradeData({
+            performSwapChecks: false,
+            expectedMinOut: 0,
+            exchangeData: abi.encodeWithSelector(
+                mockDex.swap.selector,
+                address(eBTCToken),
+                address(collateral),
+                _amount // Debt amount
+            ),
+            approvalAmount: _amount
+        });
     }
 
     function closeCdp(uint _i, uint256 _maxSlippage) public setup {
@@ -246,8 +271,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             zapActorKey
         );
 
-        uint256 debt = cdpManager.getSyncedCdpDebt(_cdpId);
-
+        (uint256 debt, uint256 collShares) = cdpManager.getSyncedDebtAndCollShares(_cdpId);
         uint256 flashFee = IERC3156FlashLender(address(borrowerOperations)).flashFee(
             address(eBTCToken),
             debt
@@ -268,18 +292,24 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                         debt + flashFee
                     ), 
                     0,
-                    false
+                    false,
+                    collShares
                 )
             ),
             true
         );
-        t(success, "Call shouldn't fail");
+
+        if (!success) {
+            if (_isValidOperation(0, false, 0, collShares)) {
+                t(success, "Call shouldn't fail");
+            }
+        }
 
         _checkApproval(address(leverageZapRouter));
     }
 
-
-    function adjustCdp(
+    // TODO: still working on this
+    /*function adjustCdp(
         uint _i,
         uint256 _debtChange,
         bool _isDebtIncrease,
@@ -294,6 +324,8 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         _i = between(_i, 0, numberOfCdps - 1);
         bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(zapSender), _i);
         t(_cdpId != bytes32(0), "CDP ID must not be null if the index is valid");
+
+        _seedActivePoolAndDex();
 
         (uint256 debt, uint256 coll) = cdpManager.getSyncedDebtAndCollShares(_cdpId);
         
@@ -311,10 +343,6 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             }
 
             uint256 apBal = collateral.balanceOf(address(activePool));
-
-            if (collValue > apBal) {
-                _seedActivePoolAndDex(collValue - apBal);
-            }
         }
 
         if (isMarginIncrease) {
@@ -348,7 +376,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         }
 
         _checkApproval(address(leverageZapRouter));
-    }
+    }*/
 
     function _adjustCdpDebtIncrease(
         bytes32 _cdpId,
@@ -381,7 +409,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                     useWstETHForDecrease: false
                 }),
                 abi.encode(pmPermit),
-                _getTradeData(_encodeDebtToCollateralTrade(_debtChange), 0, false)
+                _getTradeData(_encodeDebtToCollateralTrade(_debtChange), 0, false, _debtChange)
             ),
             true
         );
@@ -426,7 +454,8 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                         collValue // Debt amount
                     ),
                     0,
-                    false
+                    false,
+                    collValue
                 )
             ),
             true

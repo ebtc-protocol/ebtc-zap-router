@@ -34,6 +34,7 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         bytes exchangeData;
         uint256 expectedMinOut;
         bool performSwapChecks;
+        uint256 approvalAmount;
     }
 
     function openCdp(
