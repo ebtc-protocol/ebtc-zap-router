@@ -256,11 +256,11 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
 
         require(cdpManager.getActiveCdpsCount() > 1, "Cannot close last CDP");
 
-        uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+        uint256 numberOfCdps = sortedCdps.cdpCountOf(address(zapSender));
         require(numberOfCdps > 0, "Actor must have at least one CDP open");
 
         _i = between(_i, 0, numberOfCdps - 1);
-        bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+        bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(zapSender), _i);
         t(
             _cdpId != bytes32(0),
             "CDP ID must not be null if the index is valid"
@@ -285,7 +285,13 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         );
         _zapAfter();
 
-        t(success, "Call shouldn't fail");
+        if (!success) {
+            bool valid = _isValidAdjust(cdpManager.getSyncedCdpDebt(_cdpId), false, 0, 0);
+            
+            if (valid) {
+                t(success, "Call shouldn't fail");
+            }
+        }
 
         _checkZR_01();
         _checkApproval(address(zapSender));
@@ -306,11 +312,11 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         bytes32 _cdpId;
 
         {
-            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(zapSender));
             require(numberOfCdps > 0, "Actor must have at least one CDP open");
 
             _i = between(_i, 0, numberOfCdps - 1);
-            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(zapSender), _i);
             t(
                 _cdpId != bytes32(0),
                 "CDP ID must not be null if the index is valid"
@@ -389,11 +395,11 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         bytes32 _cdpId;
 
         {
-            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(zapSender));
             require(numberOfCdps > 0, "Actor must have at least one CDP open");
 
             _i = between(_i, 0, numberOfCdps - 1);
-            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(zapSender), _i);
             t(
                 _cdpId != bytes32(0),
                 "CDP ID must not be null if the index is valid"
@@ -472,11 +478,11 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         bytes32 _cdpId;
 
         {
-            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(zapSender));
             require(numberOfCdps > 0, "Actor must have at least one CDP open");
 
             _i = between(_i, 0, numberOfCdps - 1);
-            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(zapSender), _i);
             t(
                 _cdpId != bytes32(0),
                 "CDP ID must not be null if the index is valid"

@@ -7,4 +7,5 @@ pragma solidity 0.8.17;
 /// @dev check https://etherscan.io/token/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2#code
 interface IWrappedETH {
     function withdraw(uint wad) external;
+    function deposit() external payable;
 }

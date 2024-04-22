@@ -23,6 +23,16 @@ import {WstETH} from "../../src/testContracts/WstETH.sol";
 import {TargetFunctionsBase} from "./TargetFunctionsBase.sol";
 import "forge-std/console2.sol";
 
+interface ITCRGetter {
+    function getNewTCRFromCdpChange(
+        uint256 _collChange,
+        bool isCollIncrease,
+        uint256 _debtChange,
+        bool isDebtIncrease,
+        uint256 _price
+    ) external view returns (uint256);
+}
+
 abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
     uint256 public constant MAXIMUM_DEBT = 1e27;
     uint256 public constant MAXIMUM_COLL = 2000000 ether;
@@ -46,7 +56,8 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 weth: address(testWeth),
                 wstEth: address(testWstEth),
                 sortedCdps: address(sortedCdps),
-                dex: address(mockDex)
+                dex: address(mockDex),
+                owner: defaultGovernance
             })
         );
     }
@@ -88,6 +99,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
 
     function openCdp(uint256 _debt, uint256 _marginAmount) public setup {
         _debt = between(_debt, 1000, MAXIMUM_DEBT);
+        _marginAmount = between(_marginAmount, 1000, MAXIMUM_COLL);
 
         uint256 flAmount = _debtToCollateral(_debt);
         uint256 minCollAmount = cdpManager.MIN_NET_STETH_BALANCE() +
@@ -103,15 +115,9 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             _debt = _collateralToDebt(flAmount);
         }
 
-        if (_marginAmount > MAXIMUM_COLL - flAmount) {
-            _marginAmount = MAXIMUM_COLL - flAmount;
-        }
+        _seedActivePoolAndDex(MAXIMUM_COLL);
 
-        require(_marginAmount <= collateral.balanceOf(zapActor.sender()));
-
-        _seedActivePoolAndDex(flAmount);
-
-        _dealCollateral(zapActor, _marginAmount, true);
+        _dealCollateral(zapActor, MAXIMUM_COLL, true);
 
         uint256 totalDeposit = ((flAmount + _marginAmount) * COLLATERAL_BUFFER) / SLIPPAGE_PRECISION;
 
@@ -121,12 +127,49 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         (success, returnData) = _openCdp(_debt, flAmount, _marginAmount, totalDeposit);
 
         if (!success) {
-            uint256 cr = hintHelpers.computeCR(totalDeposit, _debt, priceFeedMock.fetchPrice());
+            if (_isValidOperation(_debt, true, totalDeposit, 0)) {
+                uint256 cr = hintHelpers.computeCR(totalDeposit, _debt, priceFeedMock.fetchPrice());
 
-            t(cr < borrowerOperations.MCR(), ZR_07);
+                t(cr < borrowerOperations.MCR(), ZR_07);
+            }
         }
 
         _checkApproval(address(leverageZapRouter));
+    }
+
+    function _isValidOperation(
+        uint256 _debtChange, 
+        bool _isDebtIncrease,
+        uint256 _stEthBalanceIncrease,
+        uint256 _stEthBalanceDecrease
+    ) private view returns (bool) {
+        if (_debtChange > 0 && _debtChange < zapRouter.MIN_CHANGE()) {
+            return false;         
+        }
+        if (_stEthBalanceIncrease > 0 && _stEthBalanceDecrease > 0) {
+            return false;
+        }
+        if (_stEthBalanceIncrease > 0 && _stEthBalanceIncrease < zapRouter.MIN_CHANGE()) {
+            return false;
+        }
+        if (_stEthBalanceDecrease > 0 && _stEthBalanceDecrease < zapRouter.MIN_CHANGE()) {
+            return false;
+        }
+        uint price = priceFeedMock.getPrice();
+
+        uint256 tcr = ITCRGetter(address(borrowerOperations)).getNewTCRFromCdpChange(
+            _stEthBalanceIncrease > 0 ? _stEthBalanceIncrease : _stEthBalanceDecrease,
+            _stEthBalanceIncrease > 0,
+            _debtChange,
+            _isDebtIncrease,
+            price
+        );
+
+        if (tcr < borrowerOperations.CCR()) {
+            return false;
+        }
+
+        return true;
     }
 
     function _openCdp(
@@ -165,11 +208,16 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 _marginAmount,
                 _totalAmount,
                 abi.encode(pmPermit),
-                _encodeOpenTrade(_debt)
+                _getTradeData(_encodeDebtToCollateralTrade(_debt), 0, false)
             );
     }
 
-    function _encodeOpenTrade(uint256 _debt) internal returns (bytes memory) {
+    function _getTradeData(bytes memory exchangeData, uint256 expectedMinOut, bool performSwapChecks) 
+        internal view returns (IEbtcLeverageZapRouter.TradeData memory) {
+        return IEbtcLeverageZapRouter.TradeData(exchangeData, expectedMinOut, performSwapChecks);
+    }
+
+    function _encodeDebtToCollateralTrade(uint256 _debt) internal view returns (bytes memory) {
         return
             abi.encodeWithSelector(
                 mockDex.swap.selector,
@@ -212,11 +260,15 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 _cdpId,
                 abi.encode(pmPermit),
                 (_debtToCollateral(debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION,
-                abi.encodeWithSelector(
-                    mockDex.swapExactOut.selector,
-                    address(collateral),
-                    address(eBTCToken),
-                    debt + flashFee
+                _getTradeData(
+                    abi.encodeWithSelector(
+                        mockDex.swapExactOut.selector,
+                        address(collateral),
+                        address(eBTCToken),
+                        debt + flashFee
+                    ), 
+                    0,
+                    false
                 )
             ),
             true
@@ -225,6 +277,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
 
         _checkApproval(address(leverageZapRouter));
     }
+
 
     function adjustCdp(
         uint _i,
@@ -328,12 +381,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                     useWstETHForDecrease: false
                 }),
                 abi.encode(pmPermit),
-                abi.encodeWithSelector(
-                    mockDex.swap.selector,
-                    address(eBTCToken),
-                    address(collateral),
-                    _debtChange // Debt amount
-                )
+                _getTradeData(_encodeDebtToCollateralTrade(_debtChange), 0, false)
             ),
             true
         );
@@ -370,11 +418,15 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                     useWstETHForDecrease: false
                 }),
                 abi.encode(pmPermit),
-                abi.encodeWithSelector(
-                    mockDex.swap.selector,
-                    address(collateral),
-                    address(eBTCToken),
-                    collValue // Debt amount
+                _getTradeData(
+                    abi.encodeWithSelector(
+                        mockDex.swap.selector,
+                        address(collateral),
+                        address(eBTCToken),
+                        collValue // Debt amount
+                    ),
+                    0,
+                    false
                 )
             ),
             true

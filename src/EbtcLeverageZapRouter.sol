@@ -90,6 +90,14 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         );
     }
 
+    /// @dev This is to allow wrapped ETH related Zap
+    receive() external payable {
+        require(
+            msg.sender == address(wrappedEth),
+            "EbtcLeverageZapRouter: only allow Wrapped ETH to send Ether!"
+        );
+    }
+
     function openCdpWithWrappedEth(
         uint256 _debt,
         bytes32 _upperHint,
@@ -141,7 +149,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _upperHint,
             _lowerHint,
             _stEthLoanAmount,
-            0, // _stEthMarginAmount transferred above
+            _collVal,
             _stEthDepositAmount,
             _positionManagerPermit,
             _tradeData
@@ -191,7 +199,8 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _cdpId: cdpId,
             _cdp: cdp,
             _flAmount: _stEthLoanAmount,
-            _stEthBalance: _stEthMarginAmount,
+            // collateral already transferred in by the caller
+            _stEthBalance: 0,
             _tradeData: _tradeData
         });
 
@@ -274,10 +283,11 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         bytes calldata _positionManagerPermit,
         TradeData calldata _tradeData
     ) external payable {
+        uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
         if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
             params.stEthMarginBalance = _convertRawEthToStETH(params.stEthMarginBalance);
         }
-        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData);
+        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
     }
 
     function adjustCdpWithWstEth(
@@ -286,10 +296,11 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         bytes calldata _positionManagerPermit,
         TradeData calldata _tradeData
     ) external {
+        uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
         if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
             params.stEthMarginBalance = _convertWstEthToStETH(params.stEthMarginBalance);
         }
-        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData);
+        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
     }
 
     function adjustCdpWithWrappedEth(
@@ -298,26 +309,32 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         bytes calldata _positionManagerPermit,
         TradeData calldata _tradeData
     ) external {
+        uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
         if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
             params.stEthMarginBalance = _convertWrappedEthToStETH(params.stEthMarginBalance);
         }
-        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData);
+        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
     }
 
     function adjustCdp(
         bytes32 _cdpId,
-        AdjustCdpParams calldata params,
+        AdjustCdpParams memory params,
         bytes calldata _positionManagerPermit,
         TradeData calldata _tradeData
     ) external {
-        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData);
+        uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
+        if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
+            params.stEthMarginBalance = _transferInitialStETHFromCaller(params.stEthMarginBalance);
+        }
+        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
     }
 
     function _adjustCdp(
         bytes32 _cdpId,
         AdjustCdpParams memory params,
         bytes calldata _positionManagerPermit,
-        TradeData calldata _tradeData
+        TradeData calldata _tradeData,
+        uint256 _zapStEthBalanceBefore
     ) internal nonReentrant {
         require(msg.sender == _getOwnerAddress(_cdpId), "EbtcLeverageZapRouter: not owner for adjust!");
         _requireMinAdjustment(params.debtChange);
@@ -343,12 +360,12 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
 
         _requireSingularMarginChange(marginIncrease, marginDecrease);
 
-        uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
         _adjustCdpOperation({
             _cdpId: _cdpId,
             _flType: params.isDebtIncrease ? FlashLoanType.stETH : FlashLoanType.eBTC,
             _flAmount: params.flashLoanAmount,
-            _marginIncrease: params.isStEthMarginIncrease ? params.stEthMarginBalance : 0,
+            // collateral already transferred in by the caller
+            _marginIncrease: 0,
             _cdp: AdjustCdpOperation({
                 _cdpId: _cdpId,
                 _EBTCChange: params.debtChange,

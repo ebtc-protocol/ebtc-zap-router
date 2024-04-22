@@ -14,6 +14,7 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         address wstEth;
         address sortedCdps;
         address dex;
+        address owner;
     }
 
     struct AdjustCdpParams {
