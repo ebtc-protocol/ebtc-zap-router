@@ -39,7 +39,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _upperHint,
             _lowerHint,
             _stEthLoanAmount,
-            0, // _stEthMarginAmount transferred above
+            _collVal,
             _stEthDepositAmount,
             _positionManagerPermit,
             _tradeData
@@ -73,7 +73,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _upperHint,
             _lowerHint,
             _stEthLoanAmount,
-            0, // _stEthMarginAmount transferred above
+            _collVal,
             _stEthDepositAmount,
             _positionManagerPermit,
             _tradeData
@@ -87,6 +87,14 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _wstEthMarginBalance,
             _collVal,
             msg.sender
+        );
+    }
+
+    /// @dev This is to allow wrapped ETH related Zap
+    receive() external payable {
+        require(
+            msg.sender == address(wrappedEth),
+            "EbtcLeverageZapRouter: only allow Wrapped ETH to send Ether!"
         );
     }
 
@@ -107,7 +115,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _upperHint,
             _lowerHint,
             _stEthLoanAmount,
-            0, // _stEthMarginAmount transferred above
+            _collVal,
             _stEthDepositAmount,
             _positionManagerPermit,
             _tradeData
@@ -141,7 +149,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _upperHint,
             _lowerHint,
             _stEthLoanAmount,
-            0, // _stEthMarginAmount transferred above
+            _collVal,
             _stEthDepositAmount,
             _positionManagerPermit,
             _tradeData
@@ -181,14 +189,15 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         cdp.eBTCToMint = _debt;
         cdp._upperHint = _upperHint;
         cdp._lowerHint = _lowerHint;
-        cdp.stETHToDeposit = _stEthDepositAmount;
+        cdp.stETHToDeposit = _stEthDepositAmount + _stEthMarginAmount;
         cdp.borrower = msg.sender;
 
         _openCdpOperation({
             _cdpId: cdpId,
             _cdp: cdp,
             _flAmount: _stEthLoanAmount,
-            _stEthBalance: _stEthMarginAmount,
+            // collateral already transferred in by the caller
+            _stEthBalance: 0,
             _tradeData: _tradeData
         });
 
