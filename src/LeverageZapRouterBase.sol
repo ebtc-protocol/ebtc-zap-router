@@ -14,8 +14,8 @@ import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, ReentrancyGuard, IEbtcLeverageZapRouter {
     uint256 internal constant PRECISION = 1e18;
 
-    address internal immutable theOwner;
-    address internal immutable DEX;
+    address public immutable theOwner;
+    address public immutable DEX;
 
     constructor(
         IEbtcLeverageZapRouter.DeploymentParams memory params
