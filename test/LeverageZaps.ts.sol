@@ -143,7 +143,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 _flAmount,
                 _marginAmount, // Margin amount
                 (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
-                pmPermit,
+                abi.encode(pmPermit),
                 _getOpenCdpTradeData(_debt, _flAmount)
             );
         } else if (marginType == MarginType.wstETH) {
@@ -154,7 +154,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 _flAmount,
                 _marginAmount, // Margin amount
                 (_flAmount + IWstETH(testWstEth).getStETHByWstETH(_marginAmount)) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
-                pmPermit,
+                abi.encode(pmPermit),
                 _getOpenCdpTradeData(_debt, _flAmount)
             );
         } else if (marginType == MarginType.ETH) {
@@ -165,7 +165,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 _flAmount,
                 _marginAmount, // Margin amount
                 (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
-                pmPermit,
+                abi.encode(pmPermit),
                 _getOpenCdpTradeData(_debt, _flAmount)
             );
         } else if (marginType == MarginType.WETH) {
@@ -176,7 +176,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 _flAmount,
                 _marginAmount, // Margin amount
                 (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
-                pmPermit,
+                abi.encode(pmPermit),
                 _getOpenCdpTradeData(_debt, _flAmount)
             );
         } else {
@@ -194,7 +194,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 address(eBTCToken),
                 address(collateral),
                 _debt // Debt amount
-            )
+            ),
+            approvalAmount: _debt
         });
     }
 
@@ -360,23 +361,15 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.active));
         
         uint256 flAmount = _debtToCollateral(cdpInfo.debt + flashFee);
+        uint256 collValue = (flAmount * _maxSlippage) / SLIPPAGE_PRECISION;
 
         vm.startPrank(vm.addr(0x11111));
         vm.expectRevert("EbtcLeverageZapRouter: not owner for close!");
         leverageZapRouter.closeCdp(
             cdpId,
-            pmPermit,
-            (flAmount * _maxSlippage) / SLIPPAGE_PRECISION, 
-            IEbtcLeverageZapRouter.TradeData({
-                performSwapChecks: true,
-                expectedMinOut: 0,
-                exchangeData: abi.encodeWithSelector(
-                    mockDex.swapExactOut.selector,
-                    address(collateral),
-                    address(eBTCToken),
-                    cdpInfo.debt + flashFee
-                )
-            })
+            abi.encode(pmPermit),
+            collValue,
+            _getExactOutCollateralToDebtTradeData(cdpInfo.debt + flashFee, collValue)
         );
         vm.stopPrank();
 
@@ -384,18 +377,9 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         leverageZapRouter.closeCdp(
             cdpId,
-            pmPermit,
-            (flAmount * _maxSlippage) / SLIPPAGE_PRECISION, 
-            IEbtcLeverageZapRouter.TradeData({
-                performSwapChecks: true,
-                expectedMinOut: 0,
-                exchangeData: abi.encodeWithSelector(
-                    mockDex.swapExactOut.selector,
-                    address(collateral),
-                    address(eBTCToken),
-                    cdpInfo.debt + flashFee
-                )
-            })
+            abi.encode(pmPermit),
+            collValue,
+            _getExactOutCollateralToDebtTradeData(cdpInfo.debt + flashFee, collValue)
         );
 
         vm.stopPrank();
@@ -422,24 +406,16 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         );
         
         uint256 _maxSlippage = 10050; // 0.5% slippage
+        uint256 collValue = (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION;
 
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.active));
         uint256 _stETHValBefore = IERC20(address(testWstEth)).balanceOf(user);
 
         leverageZapRouter.closeCdpForWstETH(
             cdpId,
-            pmPermit,
-            (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION, 
-            IEbtcLeverageZapRouter.TradeData({
-                performSwapChecks: true,
-                expectedMinOut: 0,
-                exchangeData: abi.encodeWithSelector(
-                    mockDex.swapExactOut.selector,
-                    address(collateral),
-                    address(eBTCToken),
-                    cdpInfo.debt + flashFee
-                )
-            })
+            abi.encode(pmPermit),
+            collValue, 
+            _getExactOutCollateralToDebtTradeData(cdpInfo.debt + flashFee, collValue)
         );
 
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.closedByOwner));
@@ -469,23 +445,15 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         );
         
         uint256 _maxSlippage = 10050; // 0.5% slippage
+        uint256 collValue = (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION;
 
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.active));
 
         leverageZapRouter.closeCdp(
             cdpId,
-            pmPermit,
-            (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION, 
-            IEbtcLeverageZapRouter.TradeData({
-                performSwapChecks: true,
-                expectedMinOut: 0,
-                exchangeData: abi.encodeWithSelector(
-                    mockDex.swapExactOut.selector,
-                    address(collateral),
-                    address(eBTCToken),
-                    cdpInfo.debt + flashFee
-                )
-            })
+            abi.encode(pmPermit),
+            collValue, 
+            _getExactOutCollateralToDebtTradeData(cdpInfo.debt + flashFee, collValue)
         );
 
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.closedByOwner));
@@ -514,7 +482,24 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         });
     }
 
-    function _getExactInDebtToCollateraelTradeData(
+    function _getExactOutCollateralToDebtTradeData(
+        uint256 _debtAmount,
+        uint256 _collAmount
+    ) private view returns (IEbtcLeverageZapRouter.TradeData memory) {
+        return IEbtcLeverageZapRouter.TradeData({
+            performSwapChecks: false,
+            expectedMinOut: 0,
+            exchangeData: abi.encodeWithSelector(
+                mockDex.swapExactOut.selector,
+                address(collateral),
+                address(eBTCToken),
+                _debtAmount
+            ),
+            approvalAmount: _collAmount
+        });
+    }
+
+    function _getExactInDebtToCollateralTradeData(
         uint256 _amount
     ) private view returns (IEbtcLeverageZapRouter.TradeData memory) {
         return IEbtcLeverageZapRouter.TradeData({
@@ -525,7 +510,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 address(eBTCToken),
                 address(collateral),
                 _amount // Debt amount
-            )
+            ),
+            approvalAmount: _amount
         });
     }
 
@@ -540,7 +526,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 address(collateral),
                 address(eBTCToken),
                 _amount // Debt amount
-            )
+            ),
+            approvalAmount: _amount
         });
     }
 
@@ -564,8 +551,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         leverageZapRouter.adjustCdp(
             cdpId, 
             _getAdjustCdpParams(flAmount, int256(debtChange), int256(collValue), 0, false), 
-            pmPermit, 
-            _getExactInDebtToCollateraelTradeData(debtChange)
+            abi.encode(pmPermit), 
+            _getExactInDebtToCollateralTradeData(debtChange)
         );
         vm.stopPrank();
 
@@ -574,8 +561,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         leverageZapRouter.adjustCdp(
             cdpId, 
             _getAdjustCdpParams(flAmount, int256(debtChange), int256(collValue), int256(marginIncrease), false),
-            pmPermit, 
-            _getExactInDebtToCollateraelTradeData(debtChange)
+            abi.encode(pmPermit), 
+            _getExactInDebtToCollateralTradeData(debtChange)
         );
 
         (uint256 debtAfter, uint256 collAfter) = cdpManager.getSyncedDebtAndCollShares(cdpId);
@@ -603,7 +590,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         leverageZapRouter.adjustCdp(
             cdpId, 
             _getAdjustCdpParams(debtChange, -int256(debtChange), -int256(collValue), -int256(marginBalance), false), 
-            pmPermit,
+            abi.encode(pmPermit),
             _getExactInCollateralToDebtTradeData(collValue)
         );
 

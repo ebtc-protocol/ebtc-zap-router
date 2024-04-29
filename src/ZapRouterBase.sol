@@ -114,7 +114,7 @@ abstract contract ZapRouterBase is IEbtcZapRouterBase {
 
     function _permitPositionManagerApproval(
         IBorrowerOperations borrowerOperations,
-        PositionManagerPermit calldata _positionManagerPermit
+        PositionManagerPermit memory _positionManagerPermit
     ) internal {
         try
             borrowerOperations.permitPositionManagerApproval(
