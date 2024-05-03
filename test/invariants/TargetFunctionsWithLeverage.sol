@@ -165,6 +165,9 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         uint256 _stEthBalanceIncrease,
         uint256 _stEthBalanceDecrease
     ) private view returns (bool) {
+        if (_debtChange == 0 && _stEthBalanceIncrease == 0 && _stEthBalanceDecrease == 0) {
+            return false;
+        }
         if (_debtChange > 0 && _debtChange < zapRouter.MIN_CHANGE()) {
             return false;         
         }
@@ -470,8 +473,8 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             if (_isValidOperation(
                 _debtChange, 
                 _isDebtIncrease, 
-                _isMarginIncrease ? _marginChange : 0, 
-                _isMarginIncrease ? 0 : _marginChange
+                _isMarginIncrease ? _marginChange + collChange : 0, 
+                _isMarginIncrease ? 0 : _marginChange + collChange
             )) {
                 if (!_isDebtIncrease && _debtChange > 0 && (debt - _debtChange) < zapRouter.MIN_CHANGE()) { 
                     // Below min debt, not valid   

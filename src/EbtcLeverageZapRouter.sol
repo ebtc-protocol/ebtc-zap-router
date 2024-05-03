@@ -260,10 +260,14 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         _transferStEthToCaller(_cdpId, EthVariantZapOperationType.CloseCdp, _useWstETH, _stETHDiff);
     }
 
-    function _requireMinAdjustment(uint256 _change) internal view {
+    function _requireNonZeroAdjustment(
+        uint256 _stEthBalanceIncrease,
+        uint256 _debtChange,
+        uint256 _stEthBalanceDecrease
+    ) internal pure {
         require(
-            _change >= MIN_CHANGE,
-            "EbtcLeverageZapRouter: Debt or collateral change must be above min"
+            _stEthBalanceIncrease > 0 || _stEthBalanceDecrease > 0 || _debtChange > 0,
+            "BorrowerOperations: There must be either a collateral or debt change"
         );
     }
 
@@ -337,8 +341,8 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         uint256 _zapStEthBalanceBefore
     ) internal nonReentrant {
         require(msg.sender == _getOwnerAddress(_cdpId), "EbtcLeverageZapRouter: not owner for adjust!");
-        _requireMinAdjustment(params.debtChange);
-        _requireMinAdjustment(params.stEthBalanceChange);
+        _requireZeroOrMinAdjustment(params.debtChange);
+        _requireZeroOrMinAdjustment(params.stEthBalanceChange);
         _requireZeroOrMinAdjustment(params.stEthMarginBalance);
 
         (uint256 debt, ) = ICdpManager(address(cdpManager)).getSyncedDebtAndCollShares(_cdpId);
@@ -358,6 +362,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             marginIncrease += params.stEthMarginBalance;
         }
 
+        _requireNonZeroAdjustment(marginIncrease, params.debtChange, marginDecrease);
         _requireSingularMarginChange(marginIncrease, marginDecrease);
 
         _adjustCdpOperation({
