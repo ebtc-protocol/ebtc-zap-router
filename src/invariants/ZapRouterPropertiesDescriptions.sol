@@ -16,7 +16,7 @@ abstract contract ZapRouterPropertiesDescriptions {
         "ZR-05: The balance of WETH in the ZapRouter should never change after creation";
     string constant ZR_06 =
         "ZR-06: The balance of wstETH in the ZapRouter should never change after creation";
-    string constant ZR_07 = "ZR-06: Parameters that lead to a valid ICR shouldn't revert";
+    string constant ZR_07 = "ZR-07: Parameters that lead to a valid ICR shouldn't revert";
     // Unit test asserts
     // Not self liquidatable
     // Loss through slippage
