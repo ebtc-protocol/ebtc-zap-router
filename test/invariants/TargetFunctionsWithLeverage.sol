@@ -24,26 +24,6 @@ import {WstETH} from "../../src/testContracts/WstETH.sol";
 import {TargetFunctionsBase} from "./TargetFunctionsBase.sol";
 import "forge-std/console2.sol";
 
-interface ICalcUtils {
-    function getNewTCRFromCdpChange(
-        uint256 _collChange,
-        bool isCollIncrease,
-        uint256 _debtChange,
-        bool isDebtIncrease,
-        uint256 _price
-    ) external view returns (uint256);
-    
-    function getNewICRFromCdpChange(
-        uint256 _coll,
-        uint256 _debt,
-        uint256 _collChange,
-        bool isCollIncrease,
-        uint256 _debtChange,
-        bool isDebtIncrease,
-        uint256 _price
-    ) external view returns (uint256);
-}
-
 abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
     uint256 public constant MAXIMUM_DEBT = 1e27;
     uint256 public constant MAXIMUM_COLL = 2000000 ether;
@@ -58,6 +38,9 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         zapActorKey = zapActorKeys[msg.sender];
         _seedActivePoolAndDex();
         _dealCollateral(zapActor, MAXIMUM_COLL, true);
+        _dealWETH(zapActor, MAXIMUM_COLL, true);
+        _dealWrappedCollateral(zapActor, MAXIMUM_COLL, true);
+        _dealETH(zapActor, MAXIMUM_COLL);
         _;
     }
 
@@ -66,7 +49,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         mockDex = new Mock1Inch(address(eBTCToken), address(collateral));
         mockDex.setPrice(priceFeedMock.fetchPrice());
         testWeth = address(new WETH9());
-        testWstEth = address(new WstETH(address(collateral)));
+        testWstEth = payable(new WstETH(address(collateral)));
         leverageZapRouter = new EbtcLeverageZapRouter(
             IEbtcLeverageZapRouter.DeploymentParams({
                 borrowerOperations: address(borrowerOperations),
@@ -120,7 +103,23 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         EBTCTokenTester(address(eBTCToken)).unprotectedMint(address(mockDex), MAXIMUM_DEBT * 2);
     }
 
+    function openCdpWithEth(uint256 _debt, uint256 _marginAmount) public setup {
+        _openCdp(_debt, _marginAmount, MarginType.ETH);
+    }
+
+    function openCdpWithWrappedEth(uint256 _debt, uint256 _marginAmount) public setup {
+        _openCdp(_debt, _marginAmount, MarginType.WETH);
+    }
+
+    function openCdpWithWstEth(uint256 _debt, uint256 _marginAmount) public {
+        _openCdp(_debt, _marginAmount, MarginType.wstETH);
+    }
+
     function openCdp(uint256 _debt, uint256 _marginAmount) public setup {
+        _openCdp(_debt, _marginAmount, MarginType.stETH);
+    }
+
+    function _openCdp(uint256 _debt, uint256 _marginAmount, MarginType _marginType) public setup {
         _debt = between(_debt, 1000, MAXIMUM_DEBT);
         _marginAmount = between(_marginAmount, 1000, MAXIMUM_COLL);
 
@@ -143,7 +142,11 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         bool success;
         bytes memory returnData;
 
-        (success, returnData) = _openCdp(_debt, flAmount, _marginAmount, totalDeposit);
+        if (_marginType == MarginType.wstETH) {
+            _marginAmount = WstETH(testWstEth).getWstETHByStETH(_marginAmount);
+        }
+
+        (success, returnData) = _openCdp(_debt, flAmount, _marginAmount, totalDeposit, _marginType);
 
         if (!success) {
             if (_isValidOperation(_debt, true, totalDeposit, 0)) {
@@ -176,7 +179,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         }
         uint price = priceFeedMock.getPrice();
 
-        uint256 tcr = ICalcUtils(address(borrowerOperations)).getNewTCRFromCdpChange(
+        uint256 tcr = _getNewTCRFromCdpChange(
             _stEthBalanceIncrease > 0 ? _stEthBalanceIncrease : _stEthBalanceDecrease,
             _stEthBalanceIncrease > 0,
             _debtChange,
@@ -195,21 +198,42 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         uint256 _debt,
         uint256 _flAmount,
         uint256 _marginAmount,
-        uint256 _totalAmount
+        uint256 _totalAmount,
+        MarginType _marginType
     ) internal returns (bool success, bytes memory returnData) {
+        uint256 msgValue;
+        if (_marginType == MarginType.ETH) {
+            msgValue = _marginAmount;
+        }
         return
             zapActor.proxy(
                 address(leverageZapRouter),
-                _encodeOpenParams(_debt, _flAmount, _marginAmount, _totalAmount),
+                _encodeOpenParams(_debt, _flAmount, _marginAmount, _totalAmount, _marginType),
+                msgValue,
                 true
             );
+    }
+
+    function _getOpenSelectorByMarginType(MarginType _marginType) private view returns (bytes4) {
+        if (_marginType == MarginType.stETH) {
+            return IEbtcLeverageZapRouter.openCdp.selector;
+        } else if (_marginType == MarginType.wstETH) {
+            return IEbtcLeverageZapRouter.openCdpWithWstEth.selector;
+        } else if (_marginType == MarginType.ETH) {
+            return IEbtcLeverageZapRouter.openCdpWithEth.selector;
+        } else if (_marginType == MarginType.WETH) {
+            return IEbtcLeverageZapRouter.openCdpWithWrappedEth.selector;
+        } else {
+            revert();
+        }
     }
 
     function _encodeOpenParams(
         uint256 _debt,
         uint256 _flAmount,
         uint256 _marginAmount,
-        uint256 _totalAmount
+        uint256 _totalAmount,
+        MarginType _marginType
     ) internal returns (bytes memory) {
         IEbtcZapRouterBase.PositionManagerPermit memory pmPermit = _generateOneTimePermit(
             address(zapSender),
@@ -219,7 +243,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
 
         return
             abi.encodeWithSelector(
-                IEbtcLeverageZapRouter.openCdp.selector,
+                _getOpenSelectorByMarginType(_marginType),
                 _debt,
                 bytes32(0),
                 bytes32(0),
@@ -260,6 +284,71 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             ),
             approvalAmount: _amount
         });
+    }
+
+    function _getNewTCRFromCdpChange(
+        uint256 _stEthBalanceChange,
+        bool _isCollIncrease,
+        uint256 _debtChange,
+        bool _isDebtIncrease,
+        uint256 _price
+    ) internal view returns (uint256) {
+        uint256 _systemCollShares = activePool.getSystemCollShares();
+        uint256 systemStEthBalance = collateral.getPooledEthByShares(_systemCollShares);
+        uint256 systemDebt = activePool.getSystemDebt();
+
+        systemStEthBalance = _isCollIncrease
+            ? systemStEthBalance + _stEthBalanceChange
+            : systemStEthBalance - _stEthBalanceChange;
+        systemDebt = _isDebtIncrease ? systemDebt + _debtChange : systemDebt - _debtChange;
+
+        uint256 newTCR = hintHelpers.computeCR(systemStEthBalance, systemDebt, _price);
+        return newTCR;
+    }
+
+    function _getNewICRFromCdpChange(
+        uint256 _collShares,
+        uint256 _debt,
+        uint256 _collSharesChange,
+        bool _isCollIncrease,
+        uint256 _debtChange,
+        bool _isDebtIncrease,
+        uint256 _price
+    ) internal view returns (uint256) {
+        (uint256 newCollShares, uint256 newDebt) = _getNewCdpAmounts(
+            _collShares,
+            _debt,
+            _collSharesChange,
+            _isCollIncrease,
+            _debtChange,
+            _isDebtIncrease
+        );
+
+        uint256 newICR = hintHelpers.computeCR(
+            collateral.getPooledEthByShares(newCollShares),
+            newDebt,
+            _price
+        );
+        return newICR;
+    }
+
+    function _getNewCdpAmounts(
+        uint256 _collShares,
+        uint256 _debt,
+        uint256 _collSharesChange,
+        bool _isCollIncrease,
+        uint256 _debtChange,
+        bool _isDebtIncrease
+    ) internal pure returns (uint256, uint256) {
+        uint256 newCollShares = _collShares;
+        uint256 newDebt = _debt;
+
+        newCollShares = _isCollIncrease
+            ? _collShares + _collSharesChange
+            : _collShares - _collSharesChange;
+        newDebt = _isDebtIncrease ? _debt + _debtChange : _debt - _debtChange;
+
+        return (newCollShares, newDebt);
     }
 
     function closeCdp(uint _i, uint256 _maxSlippage) public setup {
@@ -387,7 +476,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 if (!_isDebtIncrease && _debtChange > 0 && (debt - _debtChange) < zapRouter.MIN_CHANGE()) { 
                     // Below min debt, not valid   
                 } else {
-                    uint256 icr = ICalcUtils(address(borrowerOperations)).getNewICRFromCdpChange(
+                    uint256 icr = _getNewICRFromCdpChange(
                         coll,
                         debt,
                         collChange,

@@ -18,13 +18,6 @@ interface ICdpCdps {
     function Cdps(bytes32) external view returns (ICdpManagerData.Cdp memory);
 }
 
-enum MarginType {
-    stETH,
-    wstETH,
-    ETH,
-    WETH
-}
-
 contract LeverageZaps is ZapRouterBaseInvariants {
     function setUp() public override {
         super.setUp();

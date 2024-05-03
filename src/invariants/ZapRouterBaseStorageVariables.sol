@@ -8,6 +8,13 @@ import {BaseStorageVariables} from "@ebtc/contracts/TestContracts/BaseStorageVar
 import {Mock1Inch} from "@ebtc/contracts/TestContracts/Mock1Inch.sol";
 
 abstract contract ZapRouterBaseStorageVariables is BaseStorageVariables {
+    enum MarginType {
+        stETH,
+        wstETH,
+        ETH,
+        WETH
+    }
+
     EbtcZapRouter public zapRouter;
     EbtcLeverageZapRouter public leverageZapRouter;
     uint256 internal constant userPrivateKey = 0xabc123;
@@ -25,5 +32,5 @@ abstract contract ZapRouterBaseStorageVariables is BaseStorageVariables {
     uint256 internal zapActorKey;
     Mock1Inch internal mockDex;
     address internal testWeth;
-    address internal testWstEth;
+    address payable internal testWstEth;
 }
