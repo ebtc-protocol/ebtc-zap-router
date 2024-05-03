@@ -36,7 +36,7 @@ abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
         super._setUp();
         mockDex = new Mock1Inch(address(eBTCToken), address(collateral));
         testWeth = address(new WETH9());
-        testWstEth = address(new WstETH(address(collateral)));
+        testWstEth = payable(new WstETH(address(collateral)));
         zapRouter = new EbtcZapRouter(
             IERC20(testWstEth),
             IERC20(testWeth),
