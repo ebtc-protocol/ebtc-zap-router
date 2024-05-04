@@ -66,12 +66,12 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         );
     }
 
-    function _debtToCollateral(uint256 _debt) public returns (uint256) {
+    function _debtToCollateral(uint256 _debt) private returns (uint256) {
         uint256 price = priceFeedMock.fetchPrice();
         return (_debt * 1e18) / price;
     }
 
-    function _collateralToDebt(uint256 _coll) public returns (uint256) {
+    function _collateralToDebt(uint256 _coll) private returns (uint256) {
         uint256 price = priceFeedMock.fetchPrice();
         return (_coll * price) / 1e18;
     }
@@ -111,7 +111,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         _openCdp(_debt, _marginAmount, MarginType.WETH);
     }
 
-    function openCdpWithWstEth(uint256 _debt, uint256 _marginAmount) public {
+    function openCdpWithWstEth(uint256 _debt, uint256 _marginAmount) public setup {
         _openCdp(_debt, _marginAmount, MarginType.wstETH);
     }
 
@@ -119,7 +119,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         _openCdp(_debt, _marginAmount, MarginType.stETH);
     }
 
-    function _openCdp(uint256 _debt, uint256 _marginAmount, MarginType _marginType) public setup {
+    function _openCdp(uint256 _debt, uint256 _marginAmount, MarginType _marginType) internal {
         _debt = between(_debt, 1000, MAXIMUM_DEBT);
         _marginAmount = between(_marginAmount, 1000, MAXIMUM_COLL);
 
