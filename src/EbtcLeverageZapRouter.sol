@@ -212,25 +212,22 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
     function closeCdp(
         bytes32 _cdpId,
         bytes calldata _positionManagerPermit,
-        uint256 _stEthAmount,
         TradeData calldata _tradeData
     ) external {
-        _closeCdp(_cdpId, _positionManagerPermit, _stEthAmount, false, _tradeData);
+        _closeCdp(_cdpId, _positionManagerPermit, false, _tradeData);
     }
 
     function closeCdpForWstETH(
         bytes32 _cdpId,
         bytes calldata _positionManagerPermit,
-        uint256 _stEthAmount,
         TradeData calldata _tradeData
     ) external {
-        _closeCdp(_cdpId, _positionManagerPermit, _stEthAmount, true, _tradeData);
+        _closeCdp(_cdpId, _positionManagerPermit, true, _tradeData);
     }
 
     function _closeCdp(
         bytes32 _cdpId,
         bytes calldata _positionManagerPermit,
-        uint256 _stEthAmount,
         bool _useWstETH,
         TradeData calldata _tradeData
     ) internal nonReentrant {
@@ -247,7 +244,6 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         _closeCdpOperation({
             _cdpId: _cdpId,
             _debt: debt,
-            _stEthAmount: _stEthAmount,
             _tradeData: _tradeData
         });
         uint256 _zapStEthBalanceAfter = stEth.balanceOf(address(this));

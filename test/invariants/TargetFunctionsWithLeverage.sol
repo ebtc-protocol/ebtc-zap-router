@@ -36,11 +36,6 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         zapSender = msg.sender;
         zapActor = zapActors[msg.sender];
         zapActorKey = zapActorKeys[msg.sender];
-        _seedActivePoolAndDex();
-        _dealCollateral(zapActor, MAXIMUM_COLL, true);
-        _dealWETH(zapActor, MAXIMUM_COLL, true);
-        _dealWrappedCollateral(zapActor, MAXIMUM_COLL, true);
-        _dealETH(zapActor, MAXIMUM_COLL);
         _;
     }
 
@@ -64,6 +59,15 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 owner: defaultGovernance
             })
         );
+    }
+
+    function _seedActorAndPool() private {
+        _seedActivePoolAndDex();
+        _dealCollateral(zapActor, MAXIMUM_COLL, true);
+        _dealWETH(zapActor, MAXIMUM_COLL, true);
+        _dealWrappedCollateral(zapActor, MAXIMUM_COLL, true);
+        _dealETH(zapActor, MAXIMUM_COLL);
+        EBTCTokenTester(address(eBTCToken)).unprotectedMint(zapSender, MAXIMUM_DEBT * 2);
     }
 
     function _debtToCollateral(uint256 _debt) private returns (uint256) {
@@ -120,23 +124,12 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
     }
 
     function _openCdp(uint256 _debt, uint256 _marginAmount, MarginType _marginType) internal {
-        _debt = between(_debt, 1000, MAXIMUM_DEBT);
-        _marginAmount = between(_marginAmount, 1000, MAXIMUM_COLL);
+        _seedActorAndPool();
+
+        _debt = between(_debt, leverageZapRouter.MIN_CHANGE(), MAXIMUM_DEBT);
+        _marginAmount = between(_marginAmount, leverageZapRouter.MIN_CHANGE(), MAXIMUM_COLL);
 
         uint256 flAmount = _debtToCollateral(_debt);
-        uint256 minCollAmount = cdpManager.MIN_NET_STETH_BALANCE() +
-            borrowerOperations.LIQUIDATOR_REWARD();
-
-        if (flAmount < minCollAmount) {
-            flAmount = minCollAmount;
-            _debt = _collateralToDebt(flAmount);
-        }
-
-        if (flAmount > MAXIMUM_COLL) {
-            flAmount = MAXIMUM_COLL;
-            _debt = _collateralToDebt(flAmount);
-        }
-
         uint256 totalDeposit = ((flAmount + _marginAmount) * COLLATERAL_BUFFER) / SLIPPAGE_PRECISION;
 
         bool success;
@@ -146,10 +139,12 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             _marginAmount = WstETH(testWstEth).getWstETHByStETH(_marginAmount);
         }
 
-        (success, returnData) = _openCdp(_debt, flAmount, _marginAmount, totalDeposit, _marginType);
+        require(_isValidOperation(_debt, true, totalDeposit, 0));
+
+        (success, returnData) = _openCdpInternal(_debt, flAmount, _marginAmount, totalDeposit, _marginType);
 
         if (!success) {
-            if (_isValidOperation(_debt, true, totalDeposit, 0)) {
+            if (_isValidTCR(_debt, true, totalDeposit, 0)) {
                 uint256 cr = hintHelpers.computeCR(totalDeposit, _debt, priceFeedMock.fetchPrice());
 
                 t(cr < borrowerOperations.MCR(), ZR_07);
@@ -159,27 +154,12 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         _checkApproval(address(leverageZapRouter));
     }
 
-    function _isValidOperation(
+    function _isValidTCR(
         uint256 _debtChange, 
         bool _isDebtIncrease,
         uint256 _stEthBalanceIncrease,
         uint256 _stEthBalanceDecrease
     ) private view returns (bool) {
-        if (_debtChange == 0 && _stEthBalanceIncrease == 0 && _stEthBalanceDecrease == 0) {
-            return false;
-        }
-        if (_debtChange > 0 && _debtChange < zapRouter.MIN_CHANGE()) {
-            return false;         
-        }
-        if (_stEthBalanceIncrease > 0 && _stEthBalanceDecrease > 0) {
-            return false;
-        }
-        if (_stEthBalanceIncrease > 0 && _stEthBalanceIncrease < zapRouter.MIN_CHANGE()) {
-            return false;
-        }
-        if (_stEthBalanceDecrease > 0 && _stEthBalanceDecrease < zapRouter.MIN_CHANGE()) {
-            return false;
-        }
         uint price = priceFeedMock.getPrice();
 
         uint256 tcr = _getNewTCRFromCdpChange(
@@ -193,11 +173,34 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         if (tcr < borrowerOperations.CCR()) {
             return false;
         }
+    }
+
+    function _isValidOperation(
+        uint256 _debtChange, 
+        bool _isDebtIncrease,
+        uint256 _stEthBalanceIncrease,
+        uint256 _stEthBalanceDecrease
+    ) private view returns (bool) {
+        if (_debtChange == 0 && _stEthBalanceIncrease == 0 && _stEthBalanceDecrease == 0) {
+            return false;
+        }
+        if (_debtChange > 0 && _debtChange < leverageZapRouter.MIN_CHANGE()) {
+            return false;         
+        }
+        if (_stEthBalanceIncrease > 0 && _stEthBalanceDecrease > 0) {
+            return false;
+        }
+        if (_stEthBalanceIncrease > 0 && _stEthBalanceIncrease < leverageZapRouter.MIN_CHANGE()) {
+            return false;
+        }
+        if (_stEthBalanceDecrease > 0 && _stEthBalanceDecrease < leverageZapRouter.MIN_CHANGE()) {
+            return false;
+        }
 
         return true;
     }
 
-    function _openCdp(
+    function _openCdpInternal(
         uint256 _debt,
         uint256 _flAmount,
         uint256 _marginAmount,
@@ -258,21 +261,6 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             );
     }
 
-    function _getTradeData(bytes memory exchangeData, uint256 expectedMinOut, bool performSwapChecks, uint256 approvalAmount) 
-        internal view returns (IEbtcLeverageZapRouter.TradeData memory) {
-        return IEbtcLeverageZapRouter.TradeData(exchangeData, expectedMinOut, performSwapChecks, approvalAmount);
-    }
-
-    function _encodeDebtToCollateralTrade(uint256 _debt) internal view returns (bytes memory) {
-        return
-            abi.encodeWithSelector(
-                mockDex.swap.selector,
-                address(eBTCToken),
-                address(collateral),
-                _debt // Debt amount
-            );
-    }
-
     function _getExactInDebtToCollateralTradeData(
         uint256 _amount
     ) private view returns (IEbtcLeverageZapRouter.TradeData memory) {
@@ -286,6 +274,28 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 _amount // Debt amount
             ),
             approvalAmount: _amount
+        });
+    }
+
+    function _getExactOutCollateralDebtToTradeData(
+        uint256 _debtAmount,
+        uint256 _collAmount
+    ) private view returns (IEbtcLeverageZapRouter.TradeData memory) {
+        uint256 flashFee = IERC3156FlashLender(address(borrowerOperations)).flashFee(
+            address(eBTCToken),
+            _debtAmount
+        );
+
+        return IEbtcLeverageZapRouter.TradeData({
+            performSwapChecks: false,
+            expectedMinOut: 0,
+            exchangeData: abi.encodeWithSelector(
+                mockDex.swapExactOut.selector,
+                address(collateral),
+                address(eBTCToken),
+                _debtAmount + flashFee // Debt amount
+            ),
+            approvalAmount: _collAmount
         });
     }
 
@@ -354,7 +364,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         return (newCollShares, newDebt);
     }
 
-    function closeCdp(uint _i, uint256 _maxSlippage) public setup {
+    function closeCdp(uint _i) public setup {
         bool success;
         bytes memory returnData;
 
@@ -367,6 +377,8 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(zapSender), _i);
         t(_cdpId != bytes32(0), "CDP ID must not be null if the index is valid");
 
+        _seedActorAndPool();
+
         IEbtcZapRouterBase.PositionManagerPermit memory pmPermit = _generateOneTimePermit(
             address(zapSender),
             address(leverageZapRouter),
@@ -374,10 +386,6 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         );
 
         (uint256 debt, uint256 collShares) = cdpManager.getSyncedDebtAndCollShares(_cdpId);
-        uint256 flashFee = IERC3156FlashLender(address(borrowerOperations)).flashFee(
-            address(eBTCToken),
-            debt
-        );
 
         (success, returnData) = zapActor.proxy(
             address(leverageZapRouter),
@@ -385,24 +393,16 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 IEbtcLeverageZapRouter.closeCdp.selector,
                 _cdpId,
                 abi.encode(pmPermit),
-                (_debtToCollateral(debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION,
-                _getTradeData(
-                    abi.encodeWithSelector(
-                        mockDex.swapExactOut.selector,
-                        address(collateral),
-                        address(eBTCToken),
-                        debt + flashFee
-                    ), 
-                    0,
-                    false,
-                    collShares
+                _getExactOutCollateralDebtToTradeData(
+                    debt, 
+                    collateral.getPooledEthByShares(collShares) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION
                 )
             ),
             true
         );
 
         if (!success) {
-            if (_isValidOperation(0, false, 0, collShares)) {
+            if (_isValidTCR(debt, false, 0, collateral.getPooledEthByShares(collShares))) {
                 t(success, "Call shouldn't fail");
             }
         }
@@ -410,13 +410,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         _checkApproval(address(leverageZapRouter));
     }
 
-    function adjustCdp(
-        uint _i,
-        uint256 _debtChange,
-        bool _isDebtIncrease,
-        uint256 _marginChange,
-        bool _isMarginIncrease
-    ) public setup {
+    function adjustDebt(uint _i, uint256 _debtChange, bool _isDebtIncrease) public setup {
         require(cdpManager.getActiveCdpsCount() > 1, "Cannot close last CDP");
 
         uint256 numberOfCdps = sortedCdps.cdpCountOf(address(zapSender));
@@ -426,81 +420,65 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(zapSender), _i);
         t(_cdpId != bytes32(0), "CDP ID must not be null if the index is valid");
 
-        _seedActivePoolAndDex();
+        _seedActorAndPool();
+
+        uint256 maxDebtAdjust = _collateralToDebt(MAXIMUM_COLL / 10);
 
         (uint256 debt, uint256 coll) = cdpManager.getSyncedDebtAndCollShares(_cdpId);
         
         if (_isDebtIncrease) {
-            debt += _debtChange;
-
-            if (debt > MAXIMUM_DEBT) {
-                _debtChange = MAXIMUM_DEBT - debt;
-            }
+            _debtChange = between(_debtChange, leverageZapRouter.MIN_CHANGE(), maxDebtAdjust);
+        } else {
+            _debtChange = between(_debtChange, leverageZapRouter.MIN_CHANGE(), debt);
         }
 
-        if (_isMarginIncrease) {
-            uint256 totalColl = _marginChange + coll;
-            if (totalColl > MAXIMUM_COLL) {
-                _marginChange = MAXIMUM_COLL - coll;
-            }
-        }
-
-        _adjustCdp(_cdpId, debt, coll, _debtChange, _isDebtIncrease, _marginChange, _isMarginIncrease);
+        _adjustDebt(_cdpId, debt, coll, _debtChange, _isDebtIncrease);
     }
 
-    function _adjustCdp(
+    function _adjustDebt(
         bytes32 _cdpId,
         uint256 debt,
         uint256 coll,
         uint256 _debtChange,
-        bool _isDebtIncrease,
-        uint256 _marginChange,
-        bool _isMarginIncrease
+        bool _isDebtIncrease
     ) private {
-        bool success;
-        bool isCollIncrease;
-        uint256 collChange;
+        require(_isValidOperation(_debtChange, _isDebtIncrease, 0, 0));
 
+        bool success;
+        uint256 collValue;
+        bool collIncrease;
         if (_isDebtIncrease) {
-            (success, collChange) = _adjustCdpDebtIncrease(_cdpId, _debtChange, _marginChange);
-            isCollIncrease = true;
+            (success, collValue) = _adjustDebtIncrease(_cdpId, _debtChange);
+            collIncrease = true;
         } else {
-            (success, collChange) = _adjustCdpDebtDecrease(_cdpId, _debtChange, _marginChange);
-            isCollIncrease = false;
+            (success, collValue) = _adjustDebtDecrease(_cdpId, _debtChange);
+            collIncrease = false;
         }
 
         if (!success) {
-            if (_isValidOperation(
-                _debtChange, 
-                _isDebtIncrease, 
-                _isMarginIncrease ? _marginChange + collChange : 0, 
-                _isMarginIncrease ? 0 : _marginChange + collChange
-            )) {
-                if (!_isDebtIncrease && _debtChange > 0 && (debt - _debtChange) < zapRouter.MIN_CHANGE()) { 
-                    // Below min debt, not valid   
-                } else {
-                    uint256 icr = _getNewICRFromCdpChange(
-                        coll,
-                        debt,
-                        collChange,
-                        isCollIncrease,
-                        _debtChange,
-                        _isDebtIncrease,
-                        priceFeedMock.fetchPrice()
-                    );
+            if (!_isDebtIncrease && debt - _debtChange < leverageZapRouter.MIN_CHANGE()) {
+                // below min debt, do nothing
+            } else {
+                uint256 icr = _getNewICRFromCdpChange(
+                    coll,
+                    debt,
+                    collateral.getSharesByPooledEth(collValue),
+                    collIncrease,
+                    _debtChange,
+                    _isDebtIncrease,
+                    priceFeedMock.fetchPrice()
+                );
                     
-                    t(icr < borrowerOperations.MCR(), ZR_07);
-                }
+                t(icr < borrowerOperations.MCR(), ZR_07);                
             }
         }
 
         _checkApproval(address(leverageZapRouter));
     }
 
-    function _adjustCdpDebtIncrease(
+    function _adjustDebtIncrease(
         bytes32 _cdpId,
-        uint256 _debtChange,
-        uint256 _marginChange
+        uint256 _debtChange
     ) internal returns (bool success, uint256 collValue) {
         IEbtcZapRouterBase.PositionManagerPermit memory pmPermit = _generateOneTimePermit(
             address(zapSender),
@@ -523,21 +501,20 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                     lowerHint: bytes32(0),
                     stEthBalanceChange: collValue,
                     isStEthBalanceIncrease: true,
-                    stEthMarginBalance: _marginChange,
-                    isStEthMarginIncrease: true,
+                    stEthMarginBalance: 0,
+                    isStEthMarginIncrease: false,
                     useWstETHForDecrease: false
                 }),
                 abi.encode(pmPermit),
-                _getTradeData(_encodeDebtToCollateralTrade(_debtChange), 0, false, _debtChange)
+                _getExactInDebtToCollateralTradeData(_debtChange)
             ),
             true
         );
     }
 
-    function _adjustCdpDebtDecrease(
+    function _adjustDebtDecrease(
         bytes32 _cdpId,
-        uint256 _debtChange,
-        uint256 _marginChange
+        uint256 _debtChange
     ) internal returns (bool success, uint256 collValue) {
         IEbtcZapRouterBase.PositionManagerPermit memory pmPermit = _generateOneTimePermit(
             address(zapSender),
@@ -545,7 +522,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             zapActorKey
         );
 
-        collValue = (_debtToCollateral(_debtChange) * 10003) / 10000 + 1;
+        collValue = _debtToCollateral(_debtChange) * 10005 / 10000;
 
         (success, ) = zapActor.proxy(
             address(leverageZapRouter),
@@ -560,22 +537,12 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                     lowerHint: bytes32(0),
                     stEthBalanceChange: collValue,
                     isStEthBalanceIncrease: false,
-                    stEthMarginBalance: _marginChange,
+                    stEthMarginBalance: 0,
                     isStEthMarginIncrease: false,
                     useWstETHForDecrease: false
                 }),
                 abi.encode(pmPermit),
-                _getTradeData(
-                    abi.encodeWithSelector(
-                        mockDex.swap.selector,
-                        address(collateral),
-                        address(eBTCToken),
-                        collValue // Debt amount
-                    ),
-                    0,
-                    false,
-                    collValue
-                )
+                _getExactOutCollateralDebtToTradeData(_debtChange, _debtToCollateral(_debtChange) * 10005 / 10000)
             ),
             true
         );

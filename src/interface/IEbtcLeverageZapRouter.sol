@@ -84,14 +84,12 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
     function closeCdp(
         bytes32 _cdpId,
         bytes calldata _positionManagerPermit,
-        uint256 _stEthAmount,
         TradeData calldata _tradeData
     ) external;
 
     function closeCdpForWstETH(
         bytes32 _cdpId,
         bytes calldata _positionManagerPermit,
-        uint256 _stEthAmount,
         TradeData calldata _tradeData
     ) external;
 

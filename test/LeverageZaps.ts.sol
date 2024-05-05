@@ -343,26 +343,22 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
 
-        ICdpManagerData.Cdp memory cdpInfo = ICdpCdps(address(cdpManager)).Cdps(cdpId);
-        uint256 flashFee = IERC3156FlashLender(address(borrowerOperations)).flashFee(
-            address(eBTCToken),
-            cdpInfo.debt
-        );
-
-        uint256 _maxSlippage = 10050; // 0.5% slippage
+        (uint256 debt, uint256 collShares) = cdpManager.getSyncedDebtAndCollShares(cdpId);
 
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.active));
-        
-        uint256 flAmount = _debtToCollateral(cdpInfo.debt + flashFee);
-        uint256 collValue = (flAmount * _maxSlippage) / SLIPPAGE_PRECISION;
 
+        uint256 stEthAmount = collateral.getPooledEthByShares(collShares);
+        IEbtcLeverageZapRouter.TradeData memory tradeData = _getExactOutCollateralToDebtTradeData(
+            debt, 
+            stEthAmount * COLLATERAL_BUFFER / SLIPPAGE_PRECISION
+        );
+        
         vm.startPrank(vm.addr(0x11111));
         vm.expectRevert("EbtcLeverageZapRouter: not owner for close!");
         leverageZapRouter.closeCdp(
             cdpId,
             abi.encode(pmPermit),
-            collValue,
-            _getExactOutCollateralToDebtTradeData(cdpInfo.debt + flashFee, collValue)
+            tradeData
         );
         vm.stopPrank();
 
@@ -371,8 +367,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         leverageZapRouter.closeCdp(
             cdpId,
             abi.encode(pmPermit),
-            collValue,
-            _getExactOutCollateralToDebtTradeData(cdpInfo.debt + flashFee, collValue)
+            tradeData
         );
 
         vm.stopPrank();
@@ -392,14 +387,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         vm.startPrank(user);
 
-        ICdpManagerData.Cdp memory cdpInfo = ICdpCdps(address(cdpManager)).Cdps(cdpId);
-        uint256 flashFee = IERC3156FlashLender(address(borrowerOperations)).flashFee(
-            address(eBTCToken),
-            cdpInfo.debt
-        );
-        
-        uint256 _maxSlippage = 10050; // 0.5% slippage
-        uint256 collValue = (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION;
+        (uint256 debt, uint256 collShares) = cdpManager.getSyncedDebtAndCollShares(cdpId);
 
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.active));
         uint256 _stETHValBefore = IERC20(address(testWstEth)).balanceOf(user);
@@ -407,8 +395,10 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         leverageZapRouter.closeCdpForWstETH(
             cdpId,
             abi.encode(pmPermit),
-            collValue, 
-            _getExactOutCollateralToDebtTradeData(cdpInfo.debt + flashFee, collValue)
+            _getExactOutCollateralToDebtTradeData(
+                debt, 
+                collateral.getPooledEthByShares(collShares) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION
+            )
         );
 
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.closedByOwner));
@@ -431,22 +421,17 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         vm.startPrank(user);
 
-        ICdpManagerData.Cdp memory cdpInfo = ICdpCdps(address(cdpManager)).Cdps(cdpId);
-        uint256 flashFee = IERC3156FlashLender(address(borrowerOperations)).flashFee(
-            address(eBTCToken),
-            cdpInfo.debt
-        );
+        (uint256 debt, uint256 collShares) = cdpManager.getSyncedDebtAndCollShares(cdpId);
         
-        uint256 _maxSlippage = 10050; // 0.5% slippage
-        uint256 collValue = (_debtToCollateral(cdpInfo.debt + flashFee) * _maxSlippage) / SLIPPAGE_PRECISION;
-
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.active));
 
         leverageZapRouter.closeCdp(
             cdpId,
             abi.encode(pmPermit),
-            collValue, 
-            _getExactOutCollateralToDebtTradeData(cdpInfo.debt + flashFee, collValue)
+            _getExactOutCollateralToDebtTradeData(
+                debt, 
+                collateral.getPooledEthByShares(collShares) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION
+            )
         );
 
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.closedByOwner));
@@ -479,6 +464,11 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         uint256 _debtAmount,
         uint256 _collAmount
     ) private view returns (IEbtcLeverageZapRouter.TradeData memory) {
+        uint256 flashFee = IERC3156FlashLender(address(borrowerOperations)).flashFee(
+            address(eBTCToken),
+            _debtAmount
+        );
+
         return IEbtcLeverageZapRouter.TradeData({
             performSwapChecks: false,
             expectedMinOut: 0,
@@ -486,7 +476,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 mockDex.swapExactOut.selector,
                 address(collateral),
                 address(eBTCToken),
-                _debtAmount
+                _debtAmount + flashFee
             ),
             approvalAmount: _collAmount
         });

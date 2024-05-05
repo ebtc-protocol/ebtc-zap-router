@@ -157,7 +157,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
     function _closeCdpOperation(
         bytes32 _cdpId,
         uint256 _debt,
-        uint256 _stEthAmount,
         TradeData calldata _tradeData
     ) internal {
         CloseCdpOperation memory cdp;
