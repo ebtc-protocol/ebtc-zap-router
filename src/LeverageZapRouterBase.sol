@@ -13,6 +13,9 @@ import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 
 abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, ReentrancyGuard, IEbtcLeverageZapRouter {
     uint256 internal constant PRECISION = 1e18;
+    /// @notice 5% buffer for post operation collateral validation
+    uint256 internal constant POST_VALIDATION_BUFFER = 105;
+    uint256 internal constant PERCENT_BASIS = 100;
 
     address public immutable theOwner;
     address public immutable DEX;
@@ -74,20 +77,13 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         }
     }
 
-    function _adjustCdpOperation(
-        bytes32 _cdpId,
-        FlashLoanType _flType,
-        uint256 _flAmount,
-        uint256 _marginIncrease,
+    function _getAdjustCdpParams(
         AdjustCdpOperation memory _cdp,
-        uint256 newDebt,
-        uint256 newColl,
         TradeData calldata _tradeData
-    ) internal {
-        LeverageMacroOperation memory op;
-
+    ) private view returns (LeverageMacroOperation memory op) {
         op.tokenToTransferIn = address(stETH);
-        op.amountToTransferIn = _marginIncrease;
+        // collateral already transferred in by the caller
+        op.amountToTransferIn = 0;
         op.operationType = OperationType.AdjustCdpOperation;
         op.OperationData = abi.encode(_cdp);
 
@@ -107,13 +103,34 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
                 );
             }
         }
+    }
+
+    function _adjustCdpOperation(
+        bytes32 _cdpId,
+        FlashLoanType _flType,
+        uint256 _flAmount,
+        AdjustCdpOperation memory _cdp,
+        uint256 debt,
+        uint256 coll,
+        TradeData calldata _tradeData
+    ) internal {
+        uint256 newDebt = _cdp._isDebtIncrease ? debt + _cdp._EBTCChange : debt - _cdp._EBTCChange;
+        uint256 newColl = _cdp._stEthBalanceIncrease > 0 ? 
+            coll + stEth.getSharesByPooledEth(_cdp._stEthBalanceIncrease) : 
+            coll - stEth.getSharesByPooledEth(_cdp._stEthBalanceDecrease);
+
 
         _doOperation(
             _flType,
             _flAmount,
-            op,
+            _getAdjustCdpParams(_cdp, _tradeData),
             PostOperationCheck.cdpStats,
-            _getPostCheckParams(_cdpId, newDebt, newColl, ICdpManagerData.Status.active),
+            _getPostCheckParams(
+                _cdpId, 
+                newDebt, 
+                newColl, 
+                ICdpManagerData.Status.active
+            ),
             _cdpId
         );
 
@@ -124,13 +141,13 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         bytes32 _cdpId,
         OpenCdpForOperation memory _cdp,
         uint256 _flAmount,
-        uint256 _stEthBalance,
         TradeData calldata _tradeData
     ) internal {
         LeverageMacroOperation memory op;
 
         op.tokenToTransferIn = address(stETH);
-        op.amountToTransferIn = _stEthBalance;
+        // collateral already transferred in by the caller
+        op.amountToTransferIn = 0;
         op.operationType = OperationType.OpenCdpForOperation;
         op.OperationData = abi.encode(_cdp);
         op.swapsAfter = _getSwapOperations(address(ebtcToken), address(stETH), _tradeData);
@@ -144,7 +161,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
             _getPostCheckParams(
                 _cdpId,
                 _cdp.eBTCToMint,
-                _cdp.stETHToDeposit,
+                stETH.getSharesByPooledEth(_cdp.stETHToDeposit),
                 ICdpManagerData.Status.active
             ),
             _cdpId
@@ -221,8 +238,8 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
             PostCheckParams({
                 expectedDebt: CheckValueAndType({value: _debt, operator: Operator.equal}),
                 expectedCollateral: CheckValueAndType({
-                    value: _totalCollateral,
-                    operator: Operator.skip
+                    value:  _totalCollateral * POST_VALIDATION_BUFFER / PERCENT_BASIS,
+                    operator: Operator.gte
                 }),
                 cdpId: _cdpId,
                 expectedStatus: _status

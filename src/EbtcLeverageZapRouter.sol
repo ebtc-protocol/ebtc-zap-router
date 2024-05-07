@@ -199,8 +199,6 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _cdpId: cdpId,
             _cdp: cdp,
             _flAmount: _stEthLoanAmount,
-            // collateral already transferred in by the caller
-            _stEthBalance: 0,
             _tradeData: _tradeData
         });
 
@@ -341,7 +339,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         _requireZeroOrMinAdjustment(params.stEthBalanceChange);
         _requireZeroOrMinAdjustment(params.stEthMarginBalance);
 
-        (uint256 debt, ) = ICdpManager(address(cdpManager)).getSyncedDebtAndCollShares(_cdpId);
+        (uint256 debt, uint256 coll) = ICdpManager(address(cdpManager)).getSyncedDebtAndCollShares(_cdpId);
 
         if (_positionManagerPermit.length > 0) {
             PositionManagerPermit memory approval = abi.decode(_positionManagerPermit, (PositionManagerPermit));
@@ -365,8 +363,6 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _cdpId: _cdpId,
             _flType: params.isDebtIncrease ? FlashLoanType.stETH : FlashLoanType.eBTC,
             _flAmount: params.flashLoanAmount,
-            // collateral already transferred in by the caller
-            _marginIncrease: 0,
             _cdp: AdjustCdpOperation({
                 _cdpId: _cdpId,
                 _EBTCChange: params.debtChange,
@@ -376,8 +372,8 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
                 _stEthBalanceIncrease: marginIncrease,
                 _stEthBalanceDecrease: marginDecrease
             }),
-            newDebt: params.isDebtIncrease ? debt + params.debtChange : debt - params.debtChange,
-            newColl: 0,
+            debt: debt,
+            coll: coll,
             _tradeData: _tradeData
         });
         uint256 _zapStEthBalanceDiff = stEth.balanceOf(address(this)) - _zapStEthBalanceBefore;
