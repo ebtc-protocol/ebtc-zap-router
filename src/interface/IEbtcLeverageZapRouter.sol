@@ -18,15 +18,25 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
     }
 
     struct AdjustCdpParams {
+        /// @notice Flash loan amount used for the operation. The operation flash borrows stETH if isDebtIncrease is true and eBTC if isDebtIncrease is false
         uint256 flashLoanAmount;
+        /// @notice The total eBTC debt amount withdrawn or repaid for the specified Cdp
         uint256 debtChange;
+        /// @notice The flag (true or false) to indicate whether this is a eBTC token withdrawal (debt increase) or a repayment (debt reduce)
         bool isDebtIncrease;
+        /// @notice The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
         bytes32 upperHint;
+        /// @notice The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
         bytes32 lowerHint;
+        /// @notice The amount of margin deposit/withdrawal depending on isStEthMarginIncrease
         uint256 stEthMarginBalance;
+        /// @notice Set to true if stEthMarginBalance is used to increase total margin, false if stEthMarginBalance is used to decrease total margin
         bool isStEthMarginIncrease;
+        /// @notice Total stETH balance change for the operation
         uint256 stEthBalanceChange;
+        /// @notice Set to true if stEthBalanceChange is used to increase total collateral and false if stEthBalanceChange is used to decrease total collateral
         bool isStEthBalanceIncrease;
+        /// @notice Indicator whether withdrawn collateral is original(stETH) or wrapped version(WstETH)
         bool useWstETHForDecrease;
     }
 

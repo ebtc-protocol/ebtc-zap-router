@@ -22,6 +22,15 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         IEbtcLeverageZapRouter.DeploymentParams memory params
     ) LeverageZapRouterBase(params) { }
 
+    /// @dev Open a CDP with raw native Ether
+    /// @param _debt The total expected debt for new CDP
+    /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _stEthLoanAmount The flash loan amount needed to open the leveraged Cdp position
+    /// @param _ethMarginBalance The amount of margin deposit (converted from raw Ether) from the user, higher margin equals lower CR
+    /// @param _stEthDepositAmount The total stETH collateral amount deposited (added) for the specified Cdp
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
+    /// @param _tradeData DEX calldata for converting between debt and collateral
     function openCdpWithEth(
         uint256 _debt,
         bytes32 _upperHint,
@@ -56,6 +65,15 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         );
     }
 
+    /// @dev Open a CDP with wrapped staked Ether
+    /// @param _debt The total expected debt for new CDP
+    /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _stEthLoanAmount The flash loan amount needed to open the leveraged Cdp position
+    /// @param _wstEthMarginBalance The amount of margin deposit (converted from wrapped stETH) from the user, higher margin equals lower CR
+    /// @param _stEthDepositAmount The total stETH collateral amount deposited (added) for the specified Cdp
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
+    /// @param _tradeData DEX calldata for converting between debt and collateral
     function openCdpWithWstEth(
         uint256 _debt,
         bytes32 _upperHint,
@@ -98,6 +116,15 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         );
     }
 
+    /// @dev Open a CDP with wrapped Ether
+    /// @param _debt The total expected debt for new CDP
+    /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _stEthLoanAmount The flash loan amount needed to open the leveraged Cdp position
+    /// @param _wethMarginBalance The amount of margin deposit (converted from wrapped Ether) from the user, higher margin equals lower CR
+    /// @param _stEthDepositAmount The total stETH collateral amount deposited (added) for the specified Cdp
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
+    /// @param _tradeData DEX calldata for converting between debt and collateral
     function openCdpWithWrappedEth(
         uint256 _debt,
         bytes32 _upperHint,
@@ -132,6 +159,15 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         );
     }
 
+    /// @dev Open a CDP with staked Ether
+    /// @param _debt The total expected debt for new CDP
+    /// @param _upperHint The expected CdpId of neighboring higher ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _lowerHint The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
+    /// @param _stEthLoanAmount The flash loan amount needed to open the leveraged Cdp position
+    /// @param _stEthMarginAmount The amount of margin deposit (converted from staked Ether) from the user, higher margin equals lower CR
+    /// @param _stEthDepositAmount The total stETH collateral amount deposited (added) for the specified Cdp
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
+    /// @param _tradeData DEX calldata for converting between debt and collateral
     function openCdp(
         uint256 _debt,
         bytes32 _upperHint,
@@ -207,6 +243,11 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         }
     }
 
+    /// @dev Close a CDP with original collateral(stETH) returned to CDP owner
+    /// @dev Note plain collateral(stETH) is returned no matter whatever asset is zapped in
+    /// @param _cdpId The CdpId on which this operation is operated
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
+    /// @param _tradeData DEX calldata for converting between debt and collateral
     function closeCdp(
         bytes32 _cdpId,
         bytes calldata _positionManagerPermit,
@@ -215,6 +256,11 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         _closeCdp(_cdpId, _positionManagerPermit, false, _tradeData);
     }
 
+    /// @dev Close a CDP with wrapped version of collateral(WstETH) returned to CDP owner
+    /// @dev Note plain collateral(stETH) is returned no matter whatever asset is zapped in
+    /// @param _cdpId The CdpId on which this operation is operated
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
+    /// @param _tradeData DEX calldata for converting between debt and collateral
     function closeCdpForWstETH(
         bytes32 _cdpId,
         bytes calldata _positionManagerPermit,
@@ -275,69 +321,89 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         );
     }
 
+    /// @notice Function that allows various operations which might change both collateral (increase collateral with raw native Ether) and debt of a Cdp
+    /// @param _cdpId The CdpId on which this operation is operated
+    /// @param _params Parameters used for the adjust Cdp operation
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
+    /// @param _tradeData DEX calldata for converting between debt and collateral
     function adjustCdpWithEth(
         bytes32 _cdpId,
-        AdjustCdpParams memory params,
+        AdjustCdpParams memory _params,
         bytes calldata _positionManagerPermit,
         TradeData calldata _tradeData
     ) external payable {
         uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
-        if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
-            params.stEthMarginBalance = _convertRawEthToStETH(params.stEthMarginBalance);
+        if (_params.isStEthMarginIncrease && _params.stEthMarginBalance > 0) {
+            _params.stEthMarginBalance = _convertRawEthToStETH(_params.stEthMarginBalance);
         }
-        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
+        _adjustCdp(_cdpId, _params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
     }
 
+    /// @notice Function that allows various operations which might change both collateral (increase collateral with wrapped Ether) and debt of a Cdp
+    /// @param _cdpId The CdpId on which this operation is operated
+    /// @param _params Parameters used for the adjust Cdp operation
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
+    /// @param _tradeData DEX calldata for converting between debt and collateral
     function adjustCdpWithWstEth(
         bytes32 _cdpId,
-        AdjustCdpParams memory params,
+        AdjustCdpParams memory _params,
         bytes calldata _positionManagerPermit,
         TradeData calldata _tradeData
     ) external {
         uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
-        if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
-            params.stEthMarginBalance = _convertWstEthToStETH(params.stEthMarginBalance);
+        if (_params.isStEthMarginIncrease && _params.stEthMarginBalance > 0) {
+            _params.stEthMarginBalance = _convertWstEthToStETH(_params.stEthMarginBalance);
         }
-        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
+        _adjustCdp(_cdpId, _params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
     }
 
+    /// @notice Function that allows various operations which might change both collateral (increase collateral with wrapped Ether) and debt of a Cdp
+    /// @param _cdpId The CdpId on which this operation is operated
+    /// @param _params Parameters used for the adjust Cdp operation
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
+    /// @param _tradeData DEX calldata for converting between debt and collateral
     function adjustCdpWithWrappedEth(
         bytes32 _cdpId,
-        AdjustCdpParams memory params,
+        AdjustCdpParams memory _params,
         bytes calldata _positionManagerPermit,
         TradeData calldata _tradeData
     ) external {
         uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
-        if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
-            params.stEthMarginBalance = _convertWrappedEthToStETH(params.stEthMarginBalance);
+        if (_params.isStEthMarginIncrease && _params.stEthMarginBalance > 0) {
+            _params.stEthMarginBalance = _convertWrappedEthToStETH(_params.stEthMarginBalance);
         }
-        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
+        _adjustCdp(_cdpId, _params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
     }
 
+    /// @notice Function that allows various operations which might change both collateral and debt of a Cdp
+    /// @param _cdpId The CdpId on which this operation is operated
+    /// @param _params Parameters used for the adjust Cdp operation
+    /// @param _positionManagerPermit PositionPermit required for Zap approved by calling user
+    /// @param _tradeData DEX calldata for converting between debt and collateral
     function adjustCdp(
         bytes32 _cdpId,
-        AdjustCdpParams memory params,
+        AdjustCdpParams memory _params,
         bytes calldata _positionManagerPermit,
         TradeData calldata _tradeData
     ) external {
         uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
-        if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
-            params.stEthMarginBalance = _transferInitialStETHFromCaller(params.stEthMarginBalance);
+        if (_params.isStEthMarginIncrease && _params.stEthMarginBalance > 0) {
+            _params.stEthMarginBalance = _transferInitialStETHFromCaller(_params.stEthMarginBalance);
         }
-        _adjustCdp(_cdpId, params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
+        _adjustCdp(_cdpId, _params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
     }
 
     function _adjustCdp(
         bytes32 _cdpId,
-        AdjustCdpParams memory params,
+        AdjustCdpParams memory _params,
         bytes calldata _positionManagerPermit,
         TradeData calldata _tradeData,
         uint256 _zapStEthBalanceBefore
     ) internal nonReentrant {
         require(msg.sender == _getOwnerAddress(_cdpId), "EbtcLeverageZapRouter: not owner for adjust!");
-        _requireZeroOrMinAdjustment(params.debtChange);
-        _requireZeroOrMinAdjustment(params.stEthBalanceChange);
-        _requireZeroOrMinAdjustment(params.stEthMarginBalance);
+        _requireZeroOrMinAdjustment(_params.debtChange);
+        _requireZeroOrMinAdjustment(_params.stEthBalanceChange);
+        _requireZeroOrMinAdjustment(_params.stEthMarginBalance);
 
         (uint256 debt, uint256 coll) = ICdpManager(address(cdpManager)).getSyncedDebtAndCollShares(_cdpId);
 
@@ -346,29 +412,29 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _permitPositionManagerApproval(borrowerOperations, approval);
         }
         
-        uint256 marginDecrease = params.isStEthBalanceIncrease ? 0 : params.stEthBalanceChange;
-        if (!params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
-            marginDecrease += params.stEthMarginBalance;
+        uint256 marginDecrease = _params.isStEthBalanceIncrease ? 0 : _params.stEthBalanceChange;
+        if (!_params.isStEthMarginIncrease && _params.stEthMarginBalance > 0) {
+            marginDecrease += _params.stEthMarginBalance;
         }
 
-        uint256 marginIncrease = params.isStEthBalanceIncrease ? params.stEthBalanceChange : 0;
-        if (params.isStEthMarginIncrease && params.stEthMarginBalance > 0) {
-            marginIncrease += params.stEthMarginBalance;
+        uint256 marginIncrease = _params.isStEthBalanceIncrease ? _params.stEthBalanceChange : 0;
+        if (_params.isStEthMarginIncrease && _params.stEthMarginBalance > 0) {
+            marginIncrease += _params.stEthMarginBalance;
         }
 
-        _requireNonZeroAdjustment(marginIncrease, params.debtChange, marginDecrease);
+        _requireNonZeroAdjustment(marginIncrease, _params.debtChange, marginDecrease);
         _requireSingularMarginChange(marginIncrease, marginDecrease);
 
         _adjustCdpOperation({
             _cdpId: _cdpId,
-            _flType: params.isDebtIncrease ? FlashLoanType.stETH : FlashLoanType.eBTC,
-            _flAmount: params.flashLoanAmount,
+            _flType: _params.isDebtIncrease ? FlashLoanType.stETH : FlashLoanType.eBTC,
+            _flAmount: _params.flashLoanAmount,
             _cdp: AdjustCdpOperation({
                 _cdpId: _cdpId,
-                _EBTCChange: params.debtChange,
-                _isDebtIncrease: params.isDebtIncrease,
-                _upperHint: params.upperHint,
-                _lowerHint: params.lowerHint,
+                _EBTCChange: _params.debtChange,
+                _isDebtIncrease: _params.isDebtIncrease,
+                _upperHint: _params.upperHint,
+                _lowerHint: _params.lowerHint,
                 _stEthBalanceIncrease: marginIncrease,
                 _stEthBalanceDecrease: marginDecrease
             }),
@@ -386,7 +452,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _transferStEthToCaller(
                 _cdpId,
                 EthVariantZapOperationType.AdjustCdp,
-                params.useWstETHForDecrease,
+                _params.useWstETHForDecrease,
                 _zapStEthBalanceDiff
             );
         }

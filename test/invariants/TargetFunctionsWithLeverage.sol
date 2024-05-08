@@ -32,7 +32,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
     /// 9995 = 0.05%
     uint256 internal constant COLLATERAL_BUFFER = 9995;
 
-    modifier setup() override {
+    modifier setup() override virtual {
         zapSender = msg.sender;
         zapActor = zapActors[msg.sender];
         zapActorKey = zapActorKeys[msg.sender];
