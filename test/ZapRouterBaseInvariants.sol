@@ -39,6 +39,7 @@ contract ZapRouterBaseInvariants is
         mockDex = new Mock1Inch(address(eBTCToken), address(collateral));
         testWeth = address(new WETH9());
         testWstEth = payable(new WstETH(address(collateral)));
+        testFeeReceiver = vm.addr(0x54321);
         zapRouter = new EbtcZapRouter(
             IERC20(testWstEth),
             IERC20(testWeth),
@@ -58,7 +59,9 @@ contract ZapRouterBaseInvariants is
             wstEth: address(testWstEth),
             sortedCdps: address(sortedCdps),
             dex: address(mockDex),
-            owner: defaultGovernance
+            owner: defaultGovernance,
+            zapFeeBPS: defaultZapFee,
+            zapFeeReceiver: testFeeReceiver
         }));
         TEST_FIXED_USER = _createUserFromPrivateKey(userPrivateKey);
     }

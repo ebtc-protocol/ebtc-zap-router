@@ -15,6 +15,8 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         address sortedCdps;
         address dex;
         address owner;
+        uint256 zapFeeBPS;
+        address zapFeeReceiver;
     }
 
     struct AdjustCdpParams {
@@ -45,6 +47,7 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         uint256 expectedMinOut;
         bool performSwapChecks;
         uint256 approvalAmount;
+        uint256 collValidationBufferBPS;
     }
 
     function openCdp(
