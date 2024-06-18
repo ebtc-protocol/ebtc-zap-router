@@ -62,6 +62,17 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         return theOwner;
     }
 
+    function doOperation(
+        FlashLoanType flType,
+        uint256 borrowAmount,
+        LeverageMacroOperation calldata operation,
+        PostOperationCheck postCheckType,
+        PostCheckParams calldata checkParams
+    ) external override {
+        // prevents the owner from doing arbitrary calls
+        revert("disabled");
+    }
+
     function _sweepEbtc() private {
         /**
          * SWEEP TO CALLER *
@@ -96,21 +107,25 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         op.operationType = OperationType.AdjustCdpOperation;
         op.OperationData = abi.encode(_cdp);
 
+        // This router is only intended to be used for operations
+        // that involve flash loans. The UI will route all unleveraged
+        // operations to the normal EbtcZapRouter
         if (_cdp._isDebtIncrease) {
+            // for debt increases, we flash borrow stETH
+            // trade eBTC -> stETH for repayment
             op.swapsAfter = _getSwapOperations(
                 address(ebtcToken), 
                 address(stETH),
                 _tradeData
             );
         } else {
-            // Only swap if we are decreasing collateral
-            if (_cdp._stEthBalanceDecrease > 0) {
-                op.swapsAfter = _getSwapOperations(
-                    address(stETH),
-                    address(ebtcToken),
-                    _tradeData
-                );
-            }
+            // for debt decreases (unwinding), we flash borrow eBTC
+            // trade stETH -> eBTC for repayment
+            op.swapsAfter = _getSwapOperations(
+                address(stETH),
+                address(ebtcToken),
+                _tradeData
+            );
         }
     }
 
@@ -144,6 +159,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         );
 
         _sweepEbtc();
+        // sweepStEth happens outside of this call
     }
 
     function _openCdpOperation(
@@ -161,7 +177,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         op.OperationData = abi.encode(_cdp);
         op.swapsAfter = _getSwapOperations(address(ebtcToken), address(stETH), _tradeData);
 
-        uint256 ebtcBalBefore = ebtcToken.balanceOf(address(this));
         _doOperation(
             FlashLoanType.stETH,
             _flAmount,
@@ -211,6 +226,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         );
 
         _sweepEbtc();
+        // sweepStEth happens outside of this call
     }
 
     function _getSwapOperations(
@@ -261,9 +277,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         if (zapFeeBPS > 0) {
             OpenCdpForOperation memory flData = abi.decode(data, (OpenCdpForOperation));
 
-            /**
-            * Open CDP and Emit event
-            */
             bytes32 _cdpId = borrowerOperations.openCdpFor(
                 flData.eBTCToMint,
                 flData._upperHint,

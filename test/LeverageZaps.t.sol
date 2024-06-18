@@ -472,10 +472,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
 
-        (uint256 debtBefore, uint256 collBefore) = cdpManager.getSyncedDebtAndCollShares(cdpId);
-        uint256 icrBefore = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
-
-        uint256 debtChange = 0.1e18;
+        uint256 debtChange = 2e18;
         uint256 marginIncrease = 0.5e18;
         uint256 collValue = _debtToCollateral(debtChange) * COLLATERAL_BUFFER / 10000;
         uint256 flAmount = _debtToCollateral(debtChange);
@@ -490,23 +487,19 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         );
         vm.stopPrank();
 
-        vm.startPrank(user);
-
         _before();
+        vm.startPrank(user);
         leverageZapRouter.adjustCdp(
             cdpId, 
             _getAdjustCdpParams(flAmount, int256(debtChange), int256(collValue), int256(marginIncrease), false),
             abi.encode(pmPermit), 
             _getExactInDebtToCollateralTradeData(debtChange)
         );
+        vm.stopPrank();
         _after();
 
         // Test zap fee
         assertEq(eBTCToken.balanceOf(testFeeReceiver), (1e18 + debtChange) * defaultZapFee / 10000); 
-        (uint256 debtAfter, uint256 collAfter) = cdpManager.getSyncedDebtAndCollShares(cdpId);
-        uint256 icrAfter = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
-
-        vm.stopPrank();
 
         _checkZapStatusAfterOperation(user);
     }
@@ -518,28 +511,23 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
 
-        vm.startPrank(user);
-
-        (uint256 debtBefore, uint256 collBefore) = cdpManager.getSyncedDebtAndCollShares(cdpId);
-        uint256 icrBefore = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
-
-        uint256 debtChange = 0.1e18;
+        uint256 debtChange = 0.8e18;
         uint256 marginBalance = 0.5e18;
-        uint256 collValue = _debtToCollateral(debtChange) * 10003 / 10000 + 1;
+        uint256 collValue = _debtToCollateral(debtChange) * 10004 / 10000;
 
         _before();
+        vm.startPrank(user);
         leverageZapRouter.adjustCdp(
             cdpId, 
             _getAdjustCdpParams(debtChange, -int256(debtChange), -int256(collValue), -int256(marginBalance), false), 
             abi.encode(pmPermit),
             _getExactInCollateralToDebtTradeData(collValue)
         );
+        vm.stopPrank();
         _after();
 
-        (uint256 debtAfter, uint256 collAfter) = cdpManager.getSyncedDebtAndCollShares(cdpId);
-        uint256 icrAfter = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
-
-        vm.stopPrank();
+        // Test zap fee (no fee if debt decrease)
+        assertEq(eBTCToken.balanceOf(testFeeReceiver), 1e18 * defaultZapFee / 10000); 
 
         _checkZapStatusAfterOperation(user);
     }

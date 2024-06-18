@@ -216,11 +216,15 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         _requireZeroOrMinAdjustment(_debt);
         _requireAtLeastMinNetStEthBalance(_stEthDepositAmount - LIQUIDATOR_REWARD);
 
+        // _positionManagerPermit is only required if called directly
+        // for 3rd party integrations (i.e. DeFi saver, instadapp), setPositionManagerApproval
+        // can be used before and after each operation
         if (_positionManagerPermit.length > 0) {
             PositionManagerPermit memory approval = abi.decode(_positionManagerPermit, (PositionManagerPermit));
             _permitPositionManagerApproval(borrowerOperations, approval);
         }
 
+        // pre-compute cdpId for post checks
         cdpId = sortedCdps.toCdpId(msg.sender, block.number, sortedCdps.nextCdpNonce());
 
         OpenCdpForOperation memory cdp;
@@ -279,6 +283,9 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
 
         uint256 debt = ICdpManager(address(cdpManager)).getSyncedCdpDebt(_cdpId);
 
+        // _positionManagerPermit is only required if called directly
+        // for 3rd party integrations (i.e. DeFi saver, instadapp), setPositionManagerApproval
+        // can be used before and after each operation
         if (_positionManagerPermit.length > 0) {
             PositionManagerPermit memory approval = abi.decode(_positionManagerPermit, (PositionManagerPermit));
             _permitPositionManagerApproval(borrowerOperations, approval);
@@ -405,6 +412,7 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         _requireZeroOrMinAdjustment(_params.stEthBalanceChange);
         _requireZeroOrMinAdjustment(_params.stEthMarginBalance);
 
+        // get debt and coll amounts for post checks
         (uint256 debt, uint256 coll) = ICdpManager(address(cdpManager)).getSyncedDebtAndCollShares(_cdpId);
 
         if (_positionManagerPermit.length > 0) {
