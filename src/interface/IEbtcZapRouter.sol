@@ -1,30 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-interface IEbtcZapRouter {
-    struct PositionManagerPermit {
-        uint256 deadline;
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-    }
+import {IEbtcZapRouterBase} from "./IEbtcZapRouterBase.sol";
 
-    enum EthVariantZapOperationType {
-        OpenCdp,
-        AdjustCdp,
-        CloseCdp
-    }
-
-    event ZapOperationEthVariant(
-        bytes32 indexed cdpId,
-        EthVariantZapOperationType indexed operation,
-        bool isCollateralIncrease,
-        address indexed collateralToken,
-        uint256 collateralTokenDelta,
-        uint256 stEthDelta,
-        address cdpOwner
-    );
-
+interface IEbtcZapRouter is IEbtcZapRouterBase {
     function openCdp(
         uint256 _debt,
         bytes32 _upperHint,

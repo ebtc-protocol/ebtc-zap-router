@@ -1,6 +1,8 @@
 # Compiler files
 cache/
 out/
+node_modules/
+temp/
 
 # Fuzzing
 medusa/
@@ -16,3 +18,8 @@ docs/
 
 # Dotenv file
 .env
+
+crytic-export/
+node_modules/
+temp/
+

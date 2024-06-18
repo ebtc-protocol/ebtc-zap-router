@@ -4,23 +4,39 @@ pragma solidity 0.8.17;
 import "@crytic/properties/contracts/util/Hevm.sol";
 import {TargetContractSetup} from "@ebtc/contracts/TestContracts/invariants/TargetContractSetup.sol";
 import {CollateralTokenTester} from "@ebtc/contracts/TestContracts/CollateralTokenTester.sol";
-import {ICdpManager} from "@ebtc/contracts/interfaces/ICdpManager.sol";
-import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
-import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
+import {Mock1Inch} from "@ebtc/contracts/TestContracts/Mock1Inch.sol";
+import {ICdpManager} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
+import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 import {WETH9} from "@ebtc/contracts/TestContracts/WETH9.sol";
 import {IStETH} from "../../src/interface/IStETH.sol";
+import {IWstETH} from "../../src/interface/IWstETH.sol";
 import {ZapRouterProperties} from "../../src/invariants/ZapRouterProperties.sol";
 import {EbtcZapRouter} from "../../src/EbtcZapRouter.sol";
+import {EbtcLeverageZapRouter} from "../../src/EbtcLeverageZapRouter.sol";
 import {ZapRouterActor} from "../../src/invariants/ZapRouterActor.sol";
 import {IEbtcZapRouter} from "../../src/interface/IEbtcZapRouter.sol";
+import {IEbtcLeverageZapRouter} from "../../src/interface/IEbtcLeverageZapRouter.sol";
+import {IEbtcZapRouterBase} from "../../src/interface/IEbtcZapRouterBase.sol";
 import {WstETH} from "../../src/testContracts/WstETH.sol";
+import {TargetFunctionsBase} from "./TargetFunctionsBase.sol";
 
-abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
+interface ITCRGetter {
+    function getNewTCRFromCdpChange(
+        uint256 _collChange,
+        bool isCollIncrease,
+        uint256 _debtChange,
+        bool isDebtIncrease,
+        uint256 _price
+    ) external view returns (uint256);
+}
+
+abstract contract TargetFunctionsNoLeverage is TargetFunctionsBase {
     function setUp() public virtual {
         super._setUp();
+        mockDex = new Mock1Inch(address(eBTCToken), address(collateral));
         testWeth = address(new WETH9());
-        testWstEth = address(new WstETH(address(collateral)));
+        testWstEth = payable(new WstETH(address(collateral)));
         zapRouter = new EbtcZapRouter(
             IERC20(testWstEth),
             IERC20(testWeth),
@@ -32,194 +48,21 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         );
     }
 
-    function _dealETH(ZapRouterActor actor) private {
-        (bool success, ) = address(actor).call{value: INITIAL_ETH_BALANCE}("");
-        assert(success);
+    function _zapBefore() private {
+        zapBefore.collShares = collateral.sharesOf(address(zapRouter));
+        zapBefore.stEthBalance = collateral.balanceOf(address(zapRouter));
     }
 
-    function _dealWETH(ZapRouterActor actor) private {
-        _dealETH(actor);
-        (bool success, ) = actor.proxy(
-            address(testWeth),
-            abi.encodeWithSelector(WETH9.deposit.selector, ""),
-            INITIAL_ETH_BALANCE,
-            false
-        );
-        assert(success);
-        (success, ) = actor.proxy(
-            address(testWeth),
-            abi.encodeWithSelector(
-                WETH9.transfer.selector,
-                actor.sender(),
-                INITIAL_ETH_BALANCE
-            ),
-            false
-        );
-        assert(success);
-    }
-
-    function _dealCollateral(ZapRouterActor actor) private {
-        _dealETH(actor);
-        (bool success, ) = actor.proxy(
-            address(collateral),
-            abi.encodeWithSelector(CollateralTokenTester.deposit.selector, ""),
-            INITIAL_COLL_BALANCE,
-            false
-        );
-        assert(success);
-    }
-
-    function _dealWrappedCollateral(ZapRouterActor actor) private {
-        _dealETH(actor);
-        (bool success, ) = actor.proxy(
-            address(collateral),
-            abi.encodeWithSelector(CollateralTokenTester.deposit.selector, ""),
-            INITIAL_COLL_BALANCE,
-            false
-        );
-        assert(success);
-        (success, ) = actor.proxy(
-            address(collateral),
-            abi.encodeWithSelector(
-                CollateralTokenTester.approve.selector,
-                address(testWstEth),
-                INITIAL_COLL_BALANCE
-            ),
-            false
-        );
-        assert(success);
-        uint256 amountBefore = IERC20(testWstEth).balanceOf(address(actor));
-        (success, ) = actor.proxy(
-            testWstEth,
-            abi.encodeWithSelector(WstETH.wrap.selector, INITIAL_COLL_BALANCE),
-            false
-        );
-        assert(success);
-        uint256 amountAfter = IERC20(testWstEth).balanceOf(address(actor));
-        (success, ) = actor.proxy(
-            testWstEth,
-            abi.encodeWithSelector(
-                IERC20.transfer.selector,
-                actor.sender(),
-                amountAfter - amountBefore
-            ),
-            false
-        );
-        assert(success);
-    }
-
-    function setUpActors() internal {
-        bool success;
-        address[] memory tokens = new address[](4);
-        tokens[0] = address(eBTCToken);
-        tokens[1] = address(collateral);
-        tokens[2] = testWeth;
-        tokens[3] = testWstEth;
-        address[] memory addresses = new address[](3);
-        addresses[0] = hevm.addr(USER1_PK);
-        addresses[1] = hevm.addr(USER2_PK);
-        addresses[2] = hevm.addr(USER3_PK);
-        zapActorKeys[addresses[0]] = USER1_PK;
-        zapActorKeys[addresses[1]] = USER2_PK;
-        zapActorKeys[addresses[2]] = USER3_PK;
-        for (uint i = 0; i < NUMBER_OF_ACTORS; i++) {
-            zapActors[addresses[i]] = new ZapRouterActor(
-                tokens,
-                address(zapRouter),
-                addresses[i]
-            );
-        }
-    }
-
-    modifier setup() virtual {
-        zapSender = msg.sender;
-        zapActor = zapActors[msg.sender];
-        zapActorKey = zapActorKeys[msg.sender];
-        _;
-    }
-
-    function _checkApproval(address _user) private {
-        uint positionManagerApproval = uint256(
-            borrowerOperations.getPositionManagerApproval(
-                _user,
-                address(zapRouter)
-            )
-        );
-
-        t(
-            positionManagerApproval ==
-                uint256(IPositionManagers.PositionManagerApproval.None),
-            "ZR-04: Zap should have no PM approval after operation"
-        );
-    }
-
-    function _generatePermitSignature(
-        address _signer,
-        address _positionManager,
-        IPositionManagers.PositionManagerApproval _approval,
-        uint _deadline
-    ) internal returns (bytes32) {
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                borrowerOperations.DOMAIN_SEPARATOR(),
-                keccak256(
-                    abi.encode(
-                        borrowerOperations.permitTypeHash(),
-                        _signer,
-                        _positionManager,
-                        _approval,
-                        borrowerOperations.nonces(_signer),
-                        _deadline
-                    )
-                )
-            )
-        );
-        return digest;
-    }
-
-    function _generateOneTimePermit(
-        address user,
-        uint256 pk
-    ) internal returns (IEbtcZapRouter.PositionManagerPermit memory) {
-        uint _deadline = (block.timestamp + deadline);
-        IPositionManagers.PositionManagerApproval _approval = IPositionManagers
-            .PositionManagerApproval
-            .OneTime;
-
-        // Generate signature to one-time approve zap
-        bytes32 digest = _generatePermitSignature(
-            user,
-            address(zapRouter),
-            _approval,
-            _deadline
-        );
-        (uint8 v, bytes32 r, bytes32 s) = hevm.sign(pk, digest);
-
-        IEbtcZapRouter.PositionManagerPermit memory pmPermit = IEbtcZapRouter
-            .PositionManagerPermit(_deadline, v, r, s);
-        return pmPermit;
-    }
-
-    function setEthPerShare(uint256 _newEthPerShare) public setup {
-        uint256 currentEthPerShare = collateral.getEthPerShare();
-        _newEthPerShare = between(
-            _newEthPerShare,
-            (currentEthPerShare * 1e18) / MAX_REBASE_PERCENT,
-            (currentEthPerShare * MAX_REBASE_PERCENT) / 1e18
-        );
-        collateral.setEthPerShare(_newEthPerShare);
+    function _zapAfter() private {
+        zapAfter.collShares = collateral.sharesOf(address(zapRouter));
+        zapAfter.stEthBalance = collateral.balanceOf(address(zapRouter));
     }
 
     function openCdpWithEth(uint256 _debt, uint256 _ethBalance) public setup {
-        _dealETH(zapActor);
+        _dealETH(zapActor, INITIAL_COLL_BALANCE);
 
         bool success;
         bytes memory returnData;
-
-        // TODO: Figure out the best way to clamp this
-        // Is clamping necessary? Can we just let it revert?
-        _debt = between(_debt, 1, 0.1e18);
 
         // we pass in CCR instead of MCR in case it's the first one
         uint price = priceFeedMock.getPrice();
@@ -236,12 +79,14 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         );
         _ethBalance = between(requiredCollAmount, minCollAmount, maxCollAmount);
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -255,8 +100,21 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             _ethBalance,
             true
         );
-        t(success, "Call shouldn't fail");
+        _zapAfter();
 
+        if (!success) {
+            bool valid = _isValidAdjust(_debt, true, _ethBalance, 0);
+
+            if (_ethBalance < zapRouter.MIN_NET_STETH_BALANCE()) {
+                valid = false;
+            }
+            
+            if (valid) {
+                t(success, "Call shouldn't fail");
+            }
+        }
+
+        _checkZR_01();
         _checkApproval(address(zapSender));
     }
 
@@ -264,14 +122,10 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         uint256 _debt,
         uint256 _wethBalance
     ) public setup {
-        _dealWETH(zapActor);
+        _dealWETH(zapActor, INITIAL_COLL_BALANCE, true);
 
         bool success;
         bytes memory returnData;
-
-        // TODO: Figure out the best way to clamp this
-        // Is clamping necessary? Can we just let it revert?
-        _debt = between(_debt, 1, 0.1e18);
 
         // we pass in CCR instead of MCR in case it's the first one
         uint price = priceFeedMock.getPrice();
@@ -292,12 +146,14 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             maxCollAmount
         );
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -310,8 +166,21 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             ),
             true
         );
-        t(success, "Call shouldn't fail");
+        _zapAfter();
 
+        if (!success) {
+            bool valid = _isValidAdjust(_debt, true, _wethBalance, 0);
+
+            if (_wethBalance < zapRouter.MIN_NET_STETH_BALANCE()) {
+                valid = false;
+            }
+
+            if (valid) {
+                t(success, "Call shouldn't fail");
+            }
+        }
+
+        _checkZR_01();
         _checkApproval(address(zapSender));
     }
 
@@ -319,14 +188,10 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         uint256 _debt,
         uint256 _wstEthBalance
     ) public setup {
-        _dealWrappedCollateral(zapActor);
+        _dealWrappedCollateral(zapActor, INITIAL_COLL_BALANCE, true);
 
         bool success;
         bytes memory returnData;
-
-        // TODO: Figure out the best way to clamp this
-        // Is clamping necessary? Can we just let it revert?
-        _debt = between(_debt, 1, 0.1e18);
 
         // we pass in CCR instead of MCR in case it's the first one
         uint price = priceFeedMock.getPrice();
@@ -341,18 +206,20 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             2 * minCollAmount,
             INITIAL_COLL_BALANCE / 10
         );
-        _wstEthBalance = between(
+        _wstEthBalance = IWstETH(testWstEth).getWstETHByStETH(between(
             requiredCollAmount,
             minCollAmount,
             maxCollAmount
-        );
+        ));
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -365,8 +232,21 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             ),
             true
         );
-        t(success, "Call shouldn't fail");
+        _zapAfter();
 
+        if (!success) {
+            bool valid = _isValidAdjust(_debt, true, IWstETH(testWstEth).getStETHByWstETH(_wstEthBalance), 0);
+
+            if (IWstETH(testWstEth).getStETHByWstETH(_wstEthBalance) < zapRouter.MIN_NET_STETH_BALANCE()) {
+                valid = false;
+            }
+
+            if (valid) {
+                t(success, "Call shouldn't fail");
+            }
+        }
+
+        _checkZR_01();
         _checkApproval(address(zapSender));
     }
 
@@ -376,22 +256,24 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
 
         require(cdpManager.getActiveCdpsCount() > 1, "Cannot close last CDP");
 
-        uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+        uint256 numberOfCdps = sortedCdps.cdpCountOf(address(zapSender));
         require(numberOfCdps > 0, "Actor must have at least one CDP open");
 
         _i = between(_i, 0, numberOfCdps - 1);
-        bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+        bytes32 _cdpId = sortedCdps.cdpOfOwnerByIndex(address(zapSender), _i);
         t(
             _cdpId != bytes32(0),
             "CDP ID must not be null if the index is valid"
         );
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -401,8 +283,17 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             ),
             true
         );
-        t(success, "Call shouldn't fail");
+        _zapAfter();
 
+        if (!success) {
+            bool valid = _isValidAdjust(cdpManager.getSyncedCdpDebt(_cdpId), false, 0, 0);
+            
+            if (valid) {
+                t(success, "Call shouldn't fail");
+            }
+        }
+
+        _checkZR_01();
         _checkApproval(address(zapSender));
     }
 
@@ -414,18 +305,18 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         uint _stEthBalanceIncrease,
         bool _useWstETHForDecrease
     ) public setup {
-        _dealCollateral(zapActor);
+        _dealCollateral(zapActor, INITIAL_COLL_BALANCE, true);
 
         bool success;
         bytes memory returnData;
         bytes32 _cdpId;
 
         {
-            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(zapSender));
             require(numberOfCdps > 0, "Actor must have at least one CDP open");
 
             _i = between(_i, 0, numberOfCdps - 1);
-            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(zapSender), _i);
             t(
                 _cdpId != bytes32(0),
                 "CDP ID must not be null if the index is valid"
@@ -448,12 +339,14 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             );
         }
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -470,8 +363,20 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             ),
             true
         );
-        t(success, "Call shouldn't fail");
+        _zapAfter();
 
+        bool valid = _isValidAdjust(
+            _debtChange, 
+            _isDebtIncrease,
+            _stEthBalanceIncrease,
+            _stEthBalanceDecrease
+        );
+
+        if (valid) {
+            t(success, "Call shouldn't fail");
+        }
+
+        _checkZR_01();
         _checkApproval(address(zapSender));
     }
 
@@ -483,18 +388,18 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         uint256 _wethBalanceIncrease,
         bool _useWstETHForDecrease
     ) public setup {
-        _dealWETH(zapActor);
+        _dealWETH(zapActor, INITIAL_COLL_BALANCE, true);
 
         bool success;
         bytes memory returnData;
         bytes32 _cdpId;
 
         {
-            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(zapSender));
             require(numberOfCdps > 0, "Actor must have at least one CDP open");
 
             _i = between(_i, 0, numberOfCdps - 1);
-            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(zapSender), _i);
             t(
                 _cdpId != bytes32(0),
                 "CDP ID must not be null if the index is valid"
@@ -517,12 +422,14 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             );
         }
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -539,8 +446,20 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             ),
             true
         );
-        t(success, "Call shouldn't fail");
+        _zapAfter();
 
+        bool valid = _isValidAdjust(
+            _debtChange, 
+            _isDebtIncrease,
+            _wethBalanceIncrease,
+            _stEthBalanceDecrease
+        );
+
+        if (valid) {
+            t(success, "Call shouldn't fail");
+        }
+
+        _checkZR_01();
         _checkApproval(address(zapSender));
     }
 
@@ -552,18 +471,18 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
         uint256 _wstEthBalanceIncrease,
         bool _useWstETHForDecrease
     ) public setup {
-        _dealWrappedCollateral(zapActor);
+        _dealWrappedCollateral(zapActor, INITIAL_COLL_BALANCE, true);
 
         bool success;
         bytes memory returnData;
         bytes32 _cdpId;
 
         {
-            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(actor));
+            uint256 numberOfCdps = sortedCdps.cdpCountOf(address(zapSender));
             require(numberOfCdps > 0, "Actor must have at least one CDP open");
 
             _i = between(_i, 0, numberOfCdps - 1);
-            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(actor), _i);
+            _cdpId = sortedCdps.cdpOfOwnerByIndex(address(zapSender), _i);
             t(
                 _cdpId != bytes32(0),
                 "CDP ID must not be null if the index is valid"
@@ -580,18 +499,20 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             );
             _debtChange = between(_debtChange, 0, entireDebt);
 
-            _wstEthBalanceIncrease = min(
+            _wstEthBalanceIncrease = IWstETH(testWstEth).getWstETHByStETH(min(
                 _wstEthBalanceIncrease,
                 (INITIAL_COLL_BALANCE / 10) - entireColl
-            );
+            ));
         }
 
-        IEbtcZapRouter.PositionManagerPermit
+        IEbtcZapRouterBase.PositionManagerPermit
             memory pmPermit = _generateOneTimePermit(
                 address(zapSender),
+                address(zapRouter),
                 zapActorKey
             );
 
+        _zapBefore();
         (success, returnData) = zapActor.proxy(
             address(zapRouter),
             abi.encodeWithSelector(
@@ -608,8 +529,68 @@ abstract contract TargetFunctions is TargetContractSetup, ZapRouterProperties {
             ),
             true
         );
-        t(success, "Call shouldn't fail");
+        _zapAfter();
 
+        bool valid = _isValidAdjust(
+            _debtChange, 
+            _isDebtIncrease,
+            IWstETH(testWstEth).getStETHByWstETH(_wstEthBalanceIncrease),
+            _stEthBalanceDecrease
+        );
+
+        if (valid) {
+            t(success, "Call shouldn't fail");
+        }
+
+        _checkZR_01();
         _checkApproval(address(zapSender));
+    }
+
+    function _checkZR_01() private {
+        lte(
+            zapAfter.stEthBalance - zapBefore.stEthBalance,
+            MAX_COLL_ROUNDING_ERROR,
+            ZR_01
+        );
+        lte(
+            zapAfter.collShares - zapBefore.collShares,
+            MAX_COLL_ROUNDING_ERROR,
+            ZR_01
+        );
+    }
+
+    function _isValidAdjust(
+        uint256 _debtChange, 
+        bool _isDebtIncrease,
+        uint256 _stEthBalanceIncrease,
+        uint256 _stEthBalanceDecrease
+    ) private view returns (bool) {
+        if (_debtChange > 0 && _debtChange < zapRouter.MIN_CHANGE()) {
+            return false;         
+        }
+        if (_stEthBalanceIncrease > 0 && _stEthBalanceDecrease > 0) {
+            return false;
+        }
+        if (_stEthBalanceIncrease > 0 && _stEthBalanceIncrease < zapRouter.MIN_CHANGE()) {
+            return false;
+        }
+        if (_stEthBalanceDecrease > 0 && _stEthBalanceDecrease < zapRouter.MIN_CHANGE()) {
+            return false;
+        }
+        uint price = priceFeedMock.getPrice();
+
+        uint256 tcr = ITCRGetter(address(borrowerOperations)).getNewTCRFromCdpChange(
+            _stEthBalanceIncrease > 0 ? _stEthBalanceIncrease : _stEthBalanceDecrease,
+            _stEthBalanceIncrease > 0,
+            _debtChange,
+            _isDebtIncrease,
+            price
+        );
+
+        if (tcr < borrowerOperations.CCR()) {
+            return false;
+        }
+
+        return true;
     }
 }

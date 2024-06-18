@@ -12,7 +12,9 @@ Route between different zaps and functionality.
 - Use applies leverage or not
 - User swaps their final eBTC debt for stETH or not
 
+
 ## Usage
+
 
 ### Install
 Install Foundry and complete yarn install in dependency eBTC repo.
@@ -45,5 +47,15 @@ $ forge fmt
 
 ```shell
 $ forge snapshot
+```
+
+### Invariants
+
+```
+medusa fuzz --config medusa-no-leverage.json
+```
+
+```
+medusa fuzz --config medusa-leverage.json
 ```
 

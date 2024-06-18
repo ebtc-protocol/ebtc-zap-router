@@ -3,15 +3,18 @@ pragma solidity ^0.8.13;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {EbtcZapRouter} from "../src/EbtcZapRouter.sol";
+import {EbtcLeverageZapRouter} from "../src/EbtcLeverageZapRouter.sol";
 import {ZapRouterBaseStorageVariables} from "../src/invariants/ZapRouterBaseStorageVariables.sol";
 import {eBTCBaseInvariants} from "@ebtc/foundry_test/BaseInvariants.sol";
-import {ICdpManager} from "@ebtc/contracts/interfaces/ICdpManager.sol";
-import {IBorrowerOperations} from "@ebtc/contracts/interfaces/IBorrowerOperations.sol";
-import {IPositionManagers} from "@ebtc/contracts/interfaces/IPositionManagers.sol";
+import {ICdpManager} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
+import {IBorrowerOperations, IPositionManagers} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
+import {Mock1Inch} from "@ebtc/contracts/TestContracts/Mock1Inch.sol";
+import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
+import {IEbtcLeverageZapRouter} from "../src/interface/IEbtcLeverageZapRouter.sol";
+import {IEbtcZapRouterBase} from "../src/interface/IEbtcZapRouterBase.sol";
 import {WETH9} from "@ebtc/contracts/TestContracts/WETH9.sol";
 import {IStETH} from "../src/interface/IStETH.sol";
-import {IEbtcZapRouter} from "../src/interface/IEbtcZapRouter.sol";
 import {WstETH} from "../src/testContracts/WstETH.sol";
 import {IWstETH} from "../src/interface/IWstETH.sol";
 
@@ -32,8 +35,10 @@ contract ZapRouterBaseInvariants is
 
     function setUp() public virtual override {
         super.setUp();
+
+        mockDex = new Mock1Inch(address(eBTCToken), address(collateral));
         testWeth = address(new WETH9());
-        testWstEth = address(new WstETH(address(collateral)));
+        testWstEth = payable(new WstETH(address(collateral)));
         zapRouter = new EbtcZapRouter(
             IERC20(testWstEth),
             IERC20(testWeth),
@@ -43,6 +48,18 @@ contract ZapRouterBaseInvariants is
             ICdpManager(address(cdpManager)),
             defaultGovernance
         );
+        leverageZapRouter = new EbtcLeverageZapRouter(IEbtcLeverageZapRouter.DeploymentParams({
+            borrowerOperations: address(borrowerOperations),
+            activePool: address(activePool),
+            cdpManager: address(cdpManager),
+            ebtc: address(eBTCToken),
+            stEth: address(collateral),
+            weth: address(testWeth),
+            wstEth: address(testWstEth),
+            sortedCdps: address(sortedCdps),
+            dex: address(mockDex),
+            owner: defaultGovernance
+        }));
         TEST_FIXED_USER = _createUserFromPrivateKey(userPrivateKey);
     }
 
@@ -158,7 +175,7 @@ contract ZapRouterBaseInvariants is
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPrivateKey, digest);
 
-        IEbtcZapRouter.PositionManagerPermit memory pmPermit = IEbtcZapRouter
+        IEbtcZapRouterBase.PositionManagerPermit memory pmPermit = IEbtcZapRouterBase
             .PositionManagerPermit(_deadline, v, r, s);
         return pmPermit;
     }

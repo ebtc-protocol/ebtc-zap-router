@@ -3,9 +3,12 @@ src = "src"
 out = "out"
 libs = ["lib"]
 
+solc_version="0.8.17"
+
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 # run "forge install crytic/properties" first if it complains no file found: https://github.com/crytic/properties#testing-the-properties-with-fuzzing
 remappings = [
     "@ebtc/=lib/ebtc/packages/contracts/",
-    "@crytic/=lib/",
+    "@crytic/=lib/ebtc/packages/contracts/lib"
 ]
