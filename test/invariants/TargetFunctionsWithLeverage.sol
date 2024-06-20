@@ -29,8 +29,8 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
     uint256 public constant MAXIMUM_COLL = 2000000 ether;
     uint256 internal constant SLIPPAGE_PRECISION = 1e4;
     /// @notice Collateral buffer used to account for slippage and fees
-    /// 9995 = 0.05%
-    uint256 internal constant COLLATERAL_BUFFER = 9995;
+    /// 9970 = 0.30%
+    uint256 internal constant COLLATERAL_BUFFER = 9970;
 
     modifier setup() override virtual {
         zapSender = msg.sender;
@@ -45,6 +45,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         mockDex.setPrice(priceFeedMock.fetchPrice());
         testWeth = address(new WETH9());
         testWstEth = payable(new WstETH(address(collateral)));
+        testFeeReceiver = hevm.addr(0x54321);
         leverageZapRouter = new EbtcLeverageZapRouter(
             IEbtcLeverageZapRouter.DeploymentParams({
                 borrowerOperations: address(borrowerOperations),
@@ -56,7 +57,9 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 wstEth: address(testWstEth),
                 sortedCdps: address(sortedCdps),
                 dex: address(mockDex),
-                owner: defaultGovernance
+                owner: defaultGovernance,
+                zapFeeBPS: defaultZapFee,
+                zapFeeReceiver: testFeeReceiver
             })
         );
     }
@@ -264,6 +267,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
     function _getExactInDebtToCollateralTradeData(
         uint256 _amount
     ) private view returns (IEbtcLeverageZapRouter.TradeData memory) {
+        _amount = _amount - (_amount * leverageZapRouter.zapFeeBPS() / 10000);
         return IEbtcLeverageZapRouter.TradeData({
             performSwapChecks: false,
             expectedMinOut: 0,
@@ -273,7 +277,8 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 address(collateral),
                 _amount // Debt amount
             ),
-            approvalAmount: _amount
+            approvalAmount: _amount,
+            collValidationBufferBPS: 10500 // 5%
         });
     }
 
@@ -295,7 +300,8 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 address(eBTCToken),
                 _debtAmount + flashFee // Debt amount
             ),
-            approvalAmount: _collAmount
+            approvalAmount: _collAmount,
+            collValidationBufferBPS: 10500 // 5%
         });
     }
 
@@ -530,7 +536,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             zapActorKey
         );
 
-        collValue = (_debtToCollateral(_debtChange) * 9995) / 10000;
+        collValue = (_debtToCollateral(_debtChange) * COLLATERAL_BUFFER) / 10000;
 
         require(_isValidOperation(_debtChange, true, collValue, 0));
 

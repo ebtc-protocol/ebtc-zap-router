@@ -70,9 +70,9 @@ contract LeverageZaps is ZapRouterBaseInvariants {
     }
 
     uint256 internal constant SLIPPAGE_PRECISION = 1e4;
-    /// @notice Collateral buffer used to account for slippage and fees
-    /// 9995 = 0.05%
-    uint256 internal constant COLLATERAL_BUFFER = 9995;
+    /// @notice Collateral buffer used to account for slippage and fees (zap fee included)
+    /// 9970 = 0.30%
+    uint256 internal constant COLLATERAL_BUFFER = 9970;
 
     function createLeveragedPosition(MarginType marginType) private returns (address user, bytes32 expectedCdpId) {
         user = vm.addr(userPrivateKey);
@@ -179,6 +179,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
     function _getOpenCdpTradeData(uint256 _debt, uint256 expectedMinOut) 
         private returns (IEbtcLeverageZapRouter.TradeData memory) {
+        _debt = _debt - (_debt * defaultZapFee / 10000);
+        expectedMinOut = expectedMinOut - (expectedMinOut * defaultZapFee / 10000);
         return IEbtcLeverageZapRouter.TradeData({
             performSwapChecks: true,
             expectedMinOut: expectedMinOut,
@@ -188,42 +190,26 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 address(collateral),
                 _debt // Debt amount
             ),
-            approvalAmount: _debt
+            approvalAmount: _debt,
+            collValidationBufferBPS: 10500 // 5%
         });
     }
 
     function test_ZapOpenCdp_WithStEth_LowLeverage() public {
         seedActivePool();
 
+        _before();
         (address user, bytes32 cdpId) = createLeveragedPosition(MarginType.stETH);
-
-        vm.startPrank(user);
+        _after();
 
         // Confirm Cdp opened for user
         bytes32[] memory userCdps = sortedCdps.getCdpsOf(user);
         assertEq(userCdps.length, 1, "User should have 1 cdp");
 
-        // Confirm Zap has no cdps
-        bytes32[] memory zapCdps = sortedCdps.getCdpsOf(address(leverageZapRouter));
-        assertEq(zapCdps.length, 0, "Zap should not have a Cdp");
+        // Test zap fee
+        assertEq(eBTCToken.balanceOf(testFeeReceiver), 1e18 * defaultZapFee / 10000); 
 
-        // Confirm Zap has no coins
-        assertEq(collateral.balanceOf(address(leverageZapRouter)), 0, "Zap should have no stETH balance");
-        assertEq(collateral.sharesOf(address(leverageZapRouter)), 0, "Zap should have no stETH shares");
-        assertEq(eBTCToken.balanceOf(address(leverageZapRouter)), 0, "Zap should have no eBTC");
-
-        // Confirm PM approvals are cleared
-        uint positionManagerApproval = uint256(
-            borrowerOperations.getPositionManagerApproval(user, address(leverageZapRouter))
-        );
-        assertEq(
-            positionManagerApproval,
-            uint256(IPositionManagers.PositionManagerApproval.None),
-            "Zap should have no PM approval after operation"
-        );
-
-        vm.stopPrank();
-
+        _checkZapStatusAfterOperation(user);
         _ensureSystemInvariants();
         _ensureZapInvariants();
     }
@@ -231,35 +217,18 @@ contract LeverageZaps is ZapRouterBaseInvariants {
     function test_ZapOpenCdp_WithWstEth_LowLeverage() public {
         seedActivePool();
 
+        _before();
         (address user, bytes32 cdpId) = createLeveragedPosition(MarginType.wstETH);
-
-        vm.startPrank(user);
+        _after();
 
         // Confirm Cdp opened for user
         bytes32[] memory userCdps = sortedCdps.getCdpsOf(user);
         assertEq(userCdps.length, 1, "User should have 1 cdp");
 
-        // Confirm Zap has no cdps
-        bytes32[] memory zapCdps = sortedCdps.getCdpsOf(address(leverageZapRouter));
-        assertEq(zapCdps.length, 0, "Zap should not have a Cdp");
+        // Test zap fee
+        assertEq(eBTCToken.balanceOf(testFeeReceiver), 1e18 * defaultZapFee / 10000); 
 
-        // Confirm Zap has no coins
-        assertEq(collateral.balanceOf(address(leverageZapRouter)), 0, "Zap should have no stETH balance");
-        assertEq(collateral.sharesOf(address(leverageZapRouter)), 0, "Zap should have no stETH shares");
-        assertEq(eBTCToken.balanceOf(address(leverageZapRouter)), 0, "Zap should have no eBTC");
-
-        // Confirm PM approvals are cleared
-        uint positionManagerApproval = uint256(
-            borrowerOperations.getPositionManagerApproval(user, address(leverageZapRouter))
-        );
-        assertEq(
-            positionManagerApproval,
-            uint256(IPositionManagers.PositionManagerApproval.None),
-            "Zap should have no PM approval after operation"
-        );
-
-        vm.stopPrank();
-
+        _checkZapStatusAfterOperation(user);
         _ensureSystemInvariants();
         _ensureZapInvariants();
     }
@@ -267,35 +236,18 @@ contract LeverageZaps is ZapRouterBaseInvariants {
     function test_ZapOpenCdp_WithEth_LowLeverage() public {
         seedActivePool();
 
+        _before();
         (address user, bytes32 cdpId) = createLeveragedPosition(MarginType.ETH);
-
-        vm.startPrank(user);
+        _after();
 
         // Confirm Cdp opened for user
         bytes32[] memory userCdps = sortedCdps.getCdpsOf(user);
         assertEq(userCdps.length, 1, "User should have 1 cdp");
 
-        // Confirm Zap has no cdps
-        bytes32[] memory zapCdps = sortedCdps.getCdpsOf(address(leverageZapRouter));
-        assertEq(zapCdps.length, 0, "Zap should not have a Cdp");
+        // Test zap fee
+        assertEq(eBTCToken.balanceOf(testFeeReceiver), 1e18 * defaultZapFee / 10000); 
 
-        // Confirm Zap has no coins
-        assertEq(collateral.balanceOf(address(leverageZapRouter)), 0, "Zap should have no stETH balance");
-        assertEq(collateral.sharesOf(address(leverageZapRouter)), 0, "Zap should have no stETH shares");
-        assertEq(eBTCToken.balanceOf(address(leverageZapRouter)), 0, "Zap should have no eBTC");
-
-        // Confirm PM approvals are cleared
-        uint positionManagerApproval = uint256(
-            borrowerOperations.getPositionManagerApproval(user, address(leverageZapRouter))
-        );
-        assertEq(
-            positionManagerApproval,
-            uint256(IPositionManagers.PositionManagerApproval.None),
-            "Zap should have no PM approval after operation"
-        );
-
-        vm.stopPrank();
-
+        _checkZapStatusAfterOperation(user);
         _ensureSystemInvariants();
         _ensureZapInvariants();
     }
@@ -303,35 +255,18 @@ contract LeverageZaps is ZapRouterBaseInvariants {
     function test_ZapOpenCdp_WithWrappedEth_LowLeverage() public {
         seedActivePool();
 
+        _before();
         (address user, bytes32 cdpId) = createLeveragedPosition(MarginType.WETH);
-
-        vm.startPrank(user);
+        _after();
 
         // Confirm Cdp opened for user
         bytes32[] memory userCdps = sortedCdps.getCdpsOf(user);
         assertEq(userCdps.length, 1, "User should have 1 cdp");
 
-        // Confirm Zap has no cdps
-        bytes32[] memory zapCdps = sortedCdps.getCdpsOf(address(leverageZapRouter));
-        assertEq(zapCdps.length, 0, "Zap should not have a Cdp");
+        // Test zap fee
+        assertEq(eBTCToken.balanceOf(testFeeReceiver), 1e18 * defaultZapFee / 10000); 
 
-        // Confirm Zap has no coins
-        assertEq(collateral.balanceOf(address(leverageZapRouter)), 0, "Zap should have no stETH balance");
-        assertEq(collateral.sharesOf(address(leverageZapRouter)), 0, "Zap should have no stETH shares");
-        assertEq(eBTCToken.balanceOf(address(leverageZapRouter)), 0, "Zap should have no eBTC");
-
-        // Confirm PM approvals are cleared
-        uint positionManagerApproval = uint256(
-            borrowerOperations.getPositionManagerApproval(user, address(leverageZapRouter))
-        );
-        assertEq(
-            positionManagerApproval,
-            uint256(IPositionManagers.PositionManagerApproval.None),
-            "Zap should have no PM approval after operation"
-        );
-
-        vm.stopPrank();
-
+        _checkZapStatusAfterOperation(user);
         _ensureSystemInvariants();
         _ensureZapInvariants();
     }
@@ -364,15 +299,19 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         vm.startPrank(user);
 
+        _before();
         leverageZapRouter.closeCdp(
             cdpId,
             abi.encode(pmPermit),
             tradeData
         );
+        _after();
 
         vm.stopPrank();
 
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.closedByOwner));
+
+        _checkZapStatusAfterOperation(user);
     }
 
     function test_ZapCloseCdp_WithWstEth_LowLeverage() public {
@@ -392,6 +331,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.active));
         uint256 _stETHValBefore = IERC20(address(testWstEth)).balanceOf(user);
 
+        _before();
         leverageZapRouter.closeCdpForWstETH(
             cdpId,
             abi.encode(pmPermit),
@@ -400,13 +340,16 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 collateral.getPooledEthByShares(collShares) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION
             )
         );
+        _after();
 
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.closedByOwner));
 
         uint256 _stETHValAfter = IERC20(address(testWstEth)).balanceOf(user);
-        assertEq(_stETHValAfter - _stETHValBefore, 4986729940764674205);
+        assertEq(_stETHValAfter - _stETHValBefore, 4940573505654281098);
 
         vm.stopPrank();
+
+        _checkZapStatusAfterOperation(user);
     }
 
     function test_ZapCloseCdpWithDonation_WithStEth_LowLeverage() public {
@@ -425,6 +368,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.active));
 
+        _before();
         leverageZapRouter.closeCdp(
             cdpId,
             abi.encode(pmPermit),
@@ -433,10 +377,13 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 collateral.getPooledEthByShares(collShares) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION
             )
         );
+        _after();
 
         assertEq(cdpManager.getCdpStatus(cdpId), uint256(ICdpManagerData.Status.closedByOwner));
 
         vm.stopPrank();
+
+        _checkZapStatusAfterOperation(user);
     }
 
     function _getAdjustCdpParams(
@@ -478,13 +425,15 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 address(eBTCToken),
                 _debtAmount + flashFee
             ),
-            approvalAmount: _collAmount
+            approvalAmount: _collAmount,
+            collValidationBufferBPS: 10500 // 5%
         });
     }
 
     function _getExactInDebtToCollateralTradeData(
         uint256 _amount
     ) private view returns (IEbtcLeverageZapRouter.TradeData memory) {
+        _amount = _amount - (_amount * defaultZapFee / 10000);
         return IEbtcLeverageZapRouter.TradeData({
             performSwapChecks: false,
             expectedMinOut: 0,
@@ -494,7 +443,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 address(collateral),
                 _amount // Debt amount
             ),
-            approvalAmount: _amount
+            approvalAmount: _amount,
+            collValidationBufferBPS: 10500 // 5%
         });
     }
 
@@ -510,7 +460,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 address(eBTCToken),
                 _amount // Debt amount
             ),
-            approvalAmount: _amount
+            approvalAmount: _amount,
+            collValidationBufferBPS: 10500 // 5%
         });
     }
 
@@ -521,12 +472,9 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
 
-        (uint256 debtBefore, uint256 collBefore) = cdpManager.getSyncedDebtAndCollShares(cdpId);
-        uint256 icrBefore = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
-
-        uint256 debtChange = 0.1e18;
+        uint256 debtChange = 2e18;
         uint256 marginIncrease = 0.5e18;
-        uint256 collValue = _debtToCollateral(debtChange) * 9995 / 10000;
+        uint256 collValue = _debtToCollateral(debtChange) * COLLATERAL_BUFFER / 10000;
         uint256 flAmount = _debtToCollateral(debtChange);
 
         vm.startPrank(vm.addr(0x11111));
@@ -539,19 +487,21 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         );
         vm.stopPrank();
 
+        _before();
         vm.startPrank(user);
-
         leverageZapRouter.adjustCdp(
             cdpId, 
             _getAdjustCdpParams(flAmount, int256(debtChange), int256(collValue), int256(marginIncrease), false),
             abi.encode(pmPermit), 
             _getExactInDebtToCollateralTradeData(debtChange)
         );
-
-        (uint256 debtAfter, uint256 collAfter) = cdpManager.getSyncedDebtAndCollShares(cdpId);
-        uint256 icrAfter = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
-
         vm.stopPrank();
+        _after();
+
+        // Test zap fee
+        assertEq(eBTCToken.balanceOf(testFeeReceiver), (1e18 + debtChange) * defaultZapFee / 10000); 
+
+        _checkZapStatusAfterOperation(user);
     }
 
     function test_adjustCdp_debtDecrease_stEth() public {
@@ -561,25 +511,24 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
 
-        vm.startPrank(user);
-
-        (uint256 debtBefore, uint256 collBefore) = cdpManager.getSyncedDebtAndCollShares(cdpId);
-        uint256 icrBefore = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
-
-        uint256 debtChange = 0.1e18;
+        uint256 debtChange = 0.8e18;
         uint256 marginBalance = 0.5e18;
-        uint256 collValue = _debtToCollateral(debtChange) * 10003 / 10000 + 1;
+        uint256 collValue = _debtToCollateral(debtChange) * 10004 / 10000;
 
+        _before();
+        vm.startPrank(user);
         leverageZapRouter.adjustCdp(
             cdpId, 
             _getAdjustCdpParams(debtChange, -int256(debtChange), -int256(collValue), -int256(marginBalance), false), 
             abi.encode(pmPermit),
             _getExactInCollateralToDebtTradeData(collValue)
         );
-
-        (uint256 debtAfter, uint256 collAfter) = cdpManager.getSyncedDebtAndCollShares(cdpId);
-        uint256 icrAfter = cdpManager.getSyncedICR(cdpId, priceFeedMock.fetchPrice());
-
         vm.stopPrank();
+        _after();
+
+        // Test zap fee (no fee if debt decrease)
+        assertEq(eBTCToken.balanceOf(testFeeReceiver), 1e18 * defaultZapFee / 10000); 
+
+        _checkZapStatusAfterOperation(user);
     }
 }

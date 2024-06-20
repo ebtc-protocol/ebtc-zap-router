@@ -19,6 +19,7 @@ abstract contract ZapRouterBaseStorageVariables is BaseStorageVariables {
     EbtcLeverageZapRouter public leverageZapRouter;
     uint256 internal constant userPrivateKey = 0xabc123;
     uint256 internal constant deadline = 1800;
+    uint256 internal constant defaultZapFee = 25; // 25 BPS
 
     uint256 internal constant USER1_PK = 0xaaaaaa;
     uint256 internal constant USER2_PK = 0xbbbbbb;
@@ -33,4 +34,5 @@ abstract contract ZapRouterBaseStorageVariables is BaseStorageVariables {
     Mock1Inch internal mockDex;
     address internal testWeth;
     address payable internal testWstEth;
+    address testFeeReceiver;
 }

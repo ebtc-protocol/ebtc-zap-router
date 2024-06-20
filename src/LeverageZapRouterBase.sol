@@ -6,19 +6,22 @@ import {IPriceFeed} from "@ebtc/contracts/Interfaces/IPriceFeed.sol";
 import {ICdpManagerData} from "@ebtc/contracts/Interfaces/ICdpManager.sol";
 import {LeverageMacroBase} from "@ebtc/contracts/LeverageMacroBase.sol";
 import {ReentrancyGuard} from "@ebtc/contracts/Dependencies/ReentrancyGuard.sol";
+import {SafeERC20} from "@ebtc/contracts/Dependencies/SafeERC20.sol";
 import {IEbtcLeverageZapRouter} from "./interface/IEbtcLeverageZapRouter.sol";
 import {ZapRouterBase} from "./ZapRouterBase.sol";
 import {IStETH} from "./interface/IStETH.sol";
 import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 
 abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, ReentrancyGuard, IEbtcLeverageZapRouter {
+    using SafeERC20 for IERC20;
+
     uint256 internal constant PRECISION = 1e18;
-    /// @notice 5% buffer for post operation collateral validation
-    uint256 internal constant POST_VALIDATION_BUFFER = 105;
-    uint256 internal constant PERCENT_BASIS = 100;
+    uint256 internal constant BPS = 10000;
 
     address public immutable theOwner;
     address public immutable DEX;
+    uint256 public immutable zapFeeBPS;
+    address public immutable zapFeeReceiver;
 
     constructor(
         IEbtcLeverageZapRouter.DeploymentParams memory params
@@ -39,8 +42,14 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
             false // Do not sweep
         )
     {
+        if (params.zapFeeBPS > 0) {
+            require(params.zapFeeReceiver != address(0));
+        }
+
         theOwner = params.owner;
         DEX = params.dex;
+        zapFeeBPS = params.zapFeeBPS;
+        zapFeeReceiver = params.zapFeeReceiver;
 
         // Infinite Approvals @TODO: do these stay at max for each token?
         ebtcToken.approve(address(borrowerOperations), type(uint256).max);
@@ -51,6 +60,17 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
 
     function owner() public override returns (address) {
         return theOwner;
+    }
+
+    function doOperation(
+        FlashLoanType flType,
+        uint256 borrowAmount,
+        LeverageMacroOperation calldata operation,
+        PostOperationCheck postCheckType,
+        PostCheckParams calldata checkParams
+    ) external override {
+        // prevents the owner from doing arbitrary calls
+        revert("disabled");
     }
 
     function _sweepEbtc() private {
@@ -87,21 +107,25 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         op.operationType = OperationType.AdjustCdpOperation;
         op.OperationData = abi.encode(_cdp);
 
+        // This router is only intended to be used for operations
+        // that involve flash loans. The UI will route all unleveraged
+        // operations to the normal EbtcZapRouter
         if (_cdp._isDebtIncrease) {
+            // for debt increases, we flash borrow stETH
+            // trade eBTC -> stETH for repayment
             op.swapsAfter = _getSwapOperations(
                 address(ebtcToken), 
                 address(stETH),
                 _tradeData
             );
         } else {
-            // Only swap if we are decreasing collateral
-            if (_cdp._stEthBalanceDecrease > 0) {
-                op.swapsAfter = _getSwapOperations(
-                    address(stETH),
-                    address(ebtcToken),
-                    _tradeData
-                );
-            }
+            // for debt decreases (unwinding), we flash borrow eBTC
+            // trade stETH -> eBTC for repayment
+            op.swapsAfter = _getSwapOperations(
+                address(stETH),
+                address(ebtcToken),
+                _tradeData
+            );
         }
     }
 
@@ -119,7 +143,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
             coll + stEth.getSharesByPooledEth(_cdp._stEthBalanceIncrease) : 
             coll - stEth.getSharesByPooledEth(_cdp._stEthBalanceDecrease);
 
-
         _doOperation(
             _flType,
             _flAmount,
@@ -129,12 +152,14 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
                 _cdpId, 
                 newDebt, 
                 newColl, 
-                ICdpManagerData.Status.active
+                ICdpManagerData.Status.active,
+                _tradeData.collValidationBufferBPS
             ),
             _cdpId
         );
 
         _sweepEbtc();
+        // sweepStEth happens outside of this call
     }
 
     function _openCdpOperation(
@@ -152,7 +177,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         op.OperationData = abi.encode(_cdp);
         op.swapsAfter = _getSwapOperations(address(ebtcToken), address(stETH), _tradeData);
 
-        uint256 ebtcBalBefore = ebtcToken.balanceOf(address(this));
         _doOperation(
             FlashLoanType.stETH,
             _flAmount,
@@ -162,7 +186,9 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
                 _cdpId,
                 _cdp.eBTCToMint,
                 stETH.getSharesByPooledEth(_cdp.stETHToDeposit),
-                ICdpManagerData.Status.active
+                ICdpManagerData.Status.active,
+                _tradeData.collValidationBufferBPS
+
             ),
             _cdpId
         );
@@ -195,11 +221,12 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
             _debt,
             op,
             PostOperationCheck.isClosed,
-            _getPostCheckParams(_cdpId, 0, 0, ICdpManagerData.Status.closedByOwner),
+            _getPostCheckParams(_cdpId, 0, 0, ICdpManagerData.Status.closedByOwner, 0),
             bytes32(0)
         );
 
         _sweepEbtc();
+        // sweepStEth happens outside of this call
     }
 
     function _getSwapOperations(
@@ -210,7 +237,6 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         swaps = new SwapOperation[](1);
 
         swaps[0].tokenForSwap = _tokenIn;
-        // TODO: approve target maybe different
         swaps[0].addressForApprove = DEX;
         swaps[0].exactApproveAmount = _tradeData.approvalAmount;
         swaps[0].addressForSwap = DEX;
@@ -232,17 +258,58 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         bytes32 _cdpId,
         uint256 _debt,
         uint256 _totalCollateral,
-        ICdpManagerData.Status _status
+        ICdpManagerData.Status _status,
+        uint256 _collValidationBuffer
     ) internal view returns (PostCheckParams memory) {
         return
             PostCheckParams({
                 expectedDebt: CheckValueAndType({value: _debt, operator: Operator.equal}),
                 expectedCollateral: CheckValueAndType({
-                    value:  _totalCollateral * POST_VALIDATION_BUFFER / PERCENT_BASIS,
+                    value:  _totalCollateral * _collValidationBuffer / BPS,
                     operator: Operator.gte
                 }),
                 cdpId: _cdpId,
                 expectedStatus: _status
             });
+    }
+
+    function _openCdpForCallback(bytes memory data) internal override {
+        if (zapFeeBPS > 0) {
+            OpenCdpForOperation memory flData = abi.decode(data, (OpenCdpForOperation));
+
+            bytes32 _cdpId = borrowerOperations.openCdpFor(
+                flData.eBTCToMint,
+                flData._upperHint,
+                flData._lowerHint,
+                flData.stETHToDeposit,
+                flData.borrower
+            );
+
+            IERC20(address(ebtcToken)).safeTransfer(zapFeeReceiver, flData.eBTCToMint * zapFeeBPS / BPS);
+        } else {
+            super._openCdpForCallback(data);
+        }
+    }
+
+    function _adjustCdpCallback(bytes memory data) internal override {
+        if (zapFeeBPS > 0) {
+            AdjustCdpOperation memory flData = abi.decode(data, (AdjustCdpOperation));
+
+            borrowerOperations.adjustCdpWithColl(
+                flData._cdpId,
+                flData._stEthBalanceDecrease,
+                flData._EBTCChange,
+                flData._isDebtIncrease,
+                flData._upperHint,
+                flData._lowerHint,
+                flData._stEthBalanceIncrease
+            );
+
+            if (flData._isDebtIncrease) {
+                IERC20(address(ebtcToken)).safeTransfer(zapFeeReceiver, flData._EBTCChange * zapFeeBPS / BPS);
+            }
+        } else {
+            super._adjustCdpCallback(data);
+        }
     }
 }
