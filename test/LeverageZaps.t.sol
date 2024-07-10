@@ -113,7 +113,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         // Get before balances
         assertEq(
-            _openTestCdp(marginType, _debt, flAmount, marginAmount, pmPermit),
+            _openTestCdp(marginType, _debt, flAmount, marginAmount, abi.encode(pmPermit)),
             expectedCdpId,
             "CDP ID should match expected value"
         );
@@ -121,63 +121,113 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         vm.stopPrank();
     }
 
+    function _openCdpInternal(
+        uint256 _debt, 
+        uint256 _flAmount, 
+        uint256 _marginAmount,
+        bytes memory pmPermit
+    ) private returns (bytes32) {
+        uint256 depositAmount = (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION;
+        return leverageZapRouter.openCdp(
+            _debt, // Debt amount
+            bytes32(0),
+            bytes32(0),
+            _flAmount,
+            _marginAmount, // Margin amount
+            depositAmount,
+            pmPermit,
+            _getOpenCdpTradeData(_debt, _flAmount, collateral.getSharesByPooledEth(depositAmount))
+        );
+    }
+
+    function _openCdpWithWstEthInternal(
+        uint256 _debt, 
+        uint256 _flAmount, 
+        uint256 _marginAmount,
+        bytes memory pmPermit
+    ) private returns (bytes32) {
+        uint256 depositAmount = (_flAmount + IWstETH(testWstEth).getStETHByWstETH(_marginAmount)) 
+            * COLLATERAL_BUFFER / SLIPPAGE_PRECISION;
+        return leverageZapRouter.openCdpWithWstEth(
+            _debt, // Debt amount
+            bytes32(0),
+            bytes32(0),
+            _flAmount,
+            _marginAmount, // Margin amount
+            depositAmount,
+            pmPermit,
+            _getOpenCdpTradeData(_debt, _flAmount, collateral.getSharesByPooledEth(depositAmount))
+        );
+    }
+
+    function _openCdpWithEthInternal(
+        uint256 _debt, 
+        uint256 _flAmount, 
+        uint256 _marginAmount,
+        uint256 depositAmount,
+        bytes memory pmPermit,
+        IEbtcLeverageZapRouter.TradeData memory tradeData
+    ) private returns (bytes32) {
+        return leverageZapRouter.openCdpWithEth{value: _marginAmount}(
+            _debt, // Debt amount
+            bytes32(0),
+            bytes32(0),
+            _flAmount,
+            _marginAmount, // Margin amount
+            depositAmount,
+            pmPermit,
+            tradeData
+        );
+    }
+
+    function _openCdpWithWrappedEthInternal(
+        uint256 _debt, 
+        uint256 _flAmount, 
+        uint256 _marginAmount,
+        bytes memory pmPermit
+    ) private returns (bytes32) {
+        uint256 depositAmount = (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION;
+        return leverageZapRouter.openCdpWithWrappedEth(
+            _debt, // Debt amount
+            bytes32(0),
+            bytes32(0),
+            _flAmount,
+            _marginAmount, // Margin amount
+            depositAmount,
+            pmPermit,
+            _getOpenCdpTradeData(_debt, _flAmount, collateral.getSharesByPooledEth(depositAmount))
+        );
+    }
+
     function _openTestCdp(
         MarginType marginType,
         uint256 _debt, 
         uint256 _flAmount, 
         uint256 _marginAmount,
-        IEbtcZapRouter.PositionManagerPermit memory pmPermit
+        bytes memory pmPermit
     ) private returns (bytes32) {
         if (marginType == MarginType.stETH) {
-            return leverageZapRouter.openCdp(
-                _debt, // Debt amount
-                bytes32(0),
-                bytes32(0),
-                _flAmount,
-                _marginAmount, // Margin amount
-                (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
-                abi.encode(pmPermit),
-                _getOpenCdpTradeData(_debt, _flAmount)
-            );
+            return _openCdpInternal(_debt, _flAmount, _marginAmount, pmPermit);
         } else if (marginType == MarginType.wstETH) {
-            return leverageZapRouter.openCdpWithWstEth(
-                _debt, // Debt amount
-                bytes32(0),
-                bytes32(0),
-                _flAmount,
-                _marginAmount, // Margin amount
-                (_flAmount + IWstETH(testWstEth).getStETHByWstETH(_marginAmount)) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
-                abi.encode(pmPermit),
-                _getOpenCdpTradeData(_debt, _flAmount)
-            );
+            return _openCdpWithWstEthInternal(_debt, _flAmount, _marginAmount, pmPermit);
         } else if (marginType == MarginType.ETH) {
-            return leverageZapRouter.openCdpWithEth{value: _marginAmount}(
-                _debt, // Debt amount
-                bytes32(0),
-                bytes32(0),
-                _flAmount,
-                _marginAmount, // Margin amount
-                (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
-                abi.encode(pmPermit),
-                _getOpenCdpTradeData(_debt, _flAmount)
+            uint256 depositAmount = (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION;
+            return _openCdpWithEthInternal(
+                _debt, 
+                _flAmount, 
+                _marginAmount, 
+                depositAmount, 
+                pmPermit,
+                _getOpenCdpTradeData(_debt, _flAmount, collateral.getSharesByPooledEth(depositAmount))
             );
         } else if (marginType == MarginType.WETH) {
-            return leverageZapRouter.openCdpWithWrappedEth(
-                _debt, // Debt amount
-                bytes32(0),
-                bytes32(0),
-                _flAmount,
-                _marginAmount, // Margin amount
-                (_flAmount + _marginAmount) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
-                abi.encode(pmPermit),
-                _getOpenCdpTradeData(_debt, _flAmount)
-            );
+            return _openCdpWithWrappedEthInternal(_debt, _flAmount, _marginAmount, pmPermit);
         } else {
             revert();
         }
     }
 
-    function _getOpenCdpTradeData(uint256 _debt, uint256 expectedMinOut) 
+    function _getOpenCdpTradeData(uint256 _debt, uint256 expectedMinOut, uint256 _expectedCollateral) 
         private returns (IEbtcLeverageZapRouter.TradeData memory) {
         _debt = _debt - (_debt * defaultZapFee / 10000);
         expectedMinOut = expectedMinOut - (expectedMinOut * defaultZapFee / 10000);
@@ -191,7 +241,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 _debt // Debt amount
             ),
             approvalAmount: _debt,
-            collValidationBufferBPS: 10500 // 5%
+            expectedCollateral: _expectedCollateral - leverageZapRouter.LIQUIDATOR_REWARD()
         });
     }
 
@@ -285,7 +335,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         uint256 stEthAmount = collateral.getPooledEthByShares(collShares);
         IEbtcLeverageZapRouter.TradeData memory tradeData = _getExactOutCollateralToDebtTradeData(
             debt, 
-            stEthAmount * COLLATERAL_BUFFER / SLIPPAGE_PRECISION
+            stEthAmount * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
+            0
         );
         
         vm.startPrank(vm.addr(0x11111));
@@ -337,7 +388,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             abi.encode(pmPermit),
             _getExactOutCollateralToDebtTradeData(
                 debt, 
-                collateral.getPooledEthByShares(collShares) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION
+                collateral.getPooledEthByShares(collShares) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
+                0
             )
         );
         _after();
@@ -374,7 +426,8 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             abi.encode(pmPermit),
             _getExactOutCollateralToDebtTradeData(
                 debt, 
-                collateral.getPooledEthByShares(collShares) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION
+                collateral.getPooledEthByShares(collShares) * COLLATERAL_BUFFER / SLIPPAGE_PRECISION,
+                0
             )
         );
         _after();
@@ -390,7 +443,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         uint256 _flAmount, 
         int256 _debtChange,
         int256 _collValue,
-        int256 _marginBalance,
+        uint256 _marginIncrease,
         bool _useWstETHForDecrease
     ) private view returns (IEbtcLeverageZapRouter.AdjustCdpParams memory) {
         return IEbtcLeverageZapRouter.AdjustCdpParams({
@@ -401,15 +454,15 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             lowerHint: bytes32(0),
             stEthBalanceChange: _collValue < 0 ? uint256(-_collValue) : uint256(_collValue),
             isStEthBalanceIncrease: _collValue > 0,
-            stEthMarginBalance: _marginBalance < 0 ? uint256(-_marginBalance) : uint256(_marginBalance),
-            isStEthMarginIncrease: _marginBalance > 0,
+            marginIncrease: _marginIncrease,
             useWstETHForDecrease: _useWstETHForDecrease
         });
     }
 
     function _getExactOutCollateralToDebtTradeData(
         uint256 _debtAmount,
-        uint256 _collAmount
+        uint256 _collAmount,
+        uint256 _expectedCollateral
     ) private view returns (IEbtcLeverageZapRouter.TradeData memory) {
         uint256 flashFee = IERC3156FlashLender(address(borrowerOperations)).flashFee(
             address(eBTCToken),
@@ -426,12 +479,13 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 _debtAmount + flashFee
             ),
             approvalAmount: _collAmount,
-            collValidationBufferBPS: 10500 // 5%
+            expectedCollateral: _expectedCollateral
         });
     }
 
     function _getExactInDebtToCollateralTradeData(
-        uint256 _amount
+        uint256 _amount,
+        uint256 _expectedCollateral
     ) private view returns (IEbtcLeverageZapRouter.TradeData memory) {
         _amount = _amount - (_amount * defaultZapFee / 10000);
         return IEbtcLeverageZapRouter.TradeData({
@@ -444,12 +498,13 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 _amount // Debt amount
             ),
             approvalAmount: _amount,
-            collValidationBufferBPS: 10500 // 5%
+            expectedCollateral: _expectedCollateral
         });
     }
 
    function _getExactInCollateralToDebtTradeData(
-        uint256 _amount
+        uint256 _amount,
+        uint256 _expectedCollateral
     ) private view returns (IEbtcLeverageZapRouter.TradeData memory) {
         return IEbtcLeverageZapRouter.TradeData({
             performSwapChecks: false,
@@ -461,7 +516,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
                 _amount // Debt amount
             ),
             approvalAmount: _amount,
-            collValidationBufferBPS: 10500 // 5%
+            expectedCollateral: _expectedCollateral
         });
     }
 
@@ -472,9 +527,10 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
 
+        uint256 coll = cdpManager.getSyncedCdpCollShares(cdpId);
         uint256 debtChange = 2e18;
         uint256 marginIncrease = 0.5e18;
-        uint256 collValue = _debtToCollateral(debtChange) * COLLATERAL_BUFFER / 10000;
+        uint256 collValue = (_debtToCollateral(debtChange) + marginIncrease) * COLLATERAL_BUFFER / 10000;
         uint256 flAmount = _debtToCollateral(debtChange);
 
         vm.startPrank(vm.addr(0x11111));
@@ -483,7 +539,7 @@ contract LeverageZaps is ZapRouterBaseInvariants {
             cdpId, 
             _getAdjustCdpParams(flAmount, int256(debtChange), int256(collValue), 0, false), 
             abi.encode(pmPermit), 
-            _getExactInDebtToCollateralTradeData(debtChange)
+            _getExactInDebtToCollateralTradeData(debtChange, coll + collValue)
         );
         vm.stopPrank();
 
@@ -491,9 +547,9 @@ contract LeverageZaps is ZapRouterBaseInvariants {
         vm.startPrank(user);
         leverageZapRouter.adjustCdp(
             cdpId, 
-            _getAdjustCdpParams(flAmount, int256(debtChange), int256(collValue), int256(marginIncrease), false),
+            _getAdjustCdpParams(flAmount, int256(debtChange), int256(collValue), marginIncrease, false),
             abi.encode(pmPermit), 
-            _getExactInDebtToCollateralTradeData(debtChange)
+            _getExactInDebtToCollateralTradeData(debtChange, coll + collValue)
         );
         vm.stopPrank();
         _after();
@@ -511,17 +567,17 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         IEbtcZapRouter.PositionManagerPermit memory pmPermit = createPermit(user);
 
+        uint256 coll = cdpManager.getSyncedCdpCollShares(cdpId);
         uint256 debtChange = 0.8e18;
-        uint256 marginBalance = 0.5e18;
         uint256 collValue = _debtToCollateral(debtChange) * 10004 / 10000;
 
         _before();
         vm.startPrank(user);
         leverageZapRouter.adjustCdp(
             cdpId, 
-            _getAdjustCdpParams(debtChange, -int256(debtChange), -int256(collValue), -int256(marginBalance), false), 
+            _getAdjustCdpParams(debtChange, -int256(debtChange), -int256(collValue), 0, false), 
             abi.encode(pmPermit),
-            _getExactInCollateralToDebtTradeData(collValue)
+            _getExactInCollateralToDebtTradeData(collValue, coll - collValue)
         );
         vm.stopPrank();
         _after();

@@ -30,10 +30,8 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         bytes32 upperHint;
         /// @notice The expected CdpId of neighboring lower ICR within SortedCdps, could be simply bytes32(0)
         bytes32 lowerHint;
-        /// @notice The amount of margin deposit/withdrawal depending on isStEthMarginIncrease
-        uint256 stEthMarginBalance;
-        /// @notice Set to true if stEthMarginBalance is used to increase total margin, false if stEthMarginBalance is used to decrease total margin
-        bool isStEthMarginIncrease;
+        /// @notice The amount of margin to increase. This is used to determine the amount of tokens that will be transferred from the user.
+        uint256 marginIncrease;
         /// @notice Total stETH balance change for the operation
         uint256 stEthBalanceChange;
         /// @notice Set to true if stEthBalanceChange is used to increase total collateral and false if stEthBalanceChange is used to decrease total collateral
@@ -47,7 +45,7 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         uint256 expectedMinOut;
         bool performSwapChecks;
         uint256 approvalAmount;
-        uint256 collValidationBufferBPS;
+        uint256 expectedCollateral;
     }
 
     function openCdp(
