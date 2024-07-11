@@ -34,8 +34,7 @@ abstract contract ZapRouterBase is IEbtcZapRouterBase {
     function _depositRawEthIntoLido(uint256 _initialETH) internal returns (uint256) {
         // check before-after balances for 1-wei corner case
         uint256 _balBefore = stEth.balanceOf(address(this));
-        // TODO call submit() with a referral?
-        payable(address(stEth)).call{value: _initialETH}("");
+        stEth.submit{value: _initialETH}(address(0));
         uint256 _deposit = stEth.balanceOf(address(this)) - _balBefore;
         return _deposit;
     }

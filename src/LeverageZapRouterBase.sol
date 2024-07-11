@@ -257,7 +257,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
                 expectedDebt: CheckValueAndType({value: _debt, operator: Operator.equal}),
                 expectedCollateral: CheckValueAndType({
                     value: _expectedCollateral,
-                    operator: Operator.lte
+                    operator: Operator.gte
                 }),
                 cdpId: _cdpId,
                 expectedStatus: _status
