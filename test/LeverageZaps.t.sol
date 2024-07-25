@@ -587,4 +587,26 @@ contract LeverageZaps is ZapRouterBaseInvariants {
 
         _checkZapStatusAfterOperation(user);
     }
+
+    function test_sweepETH() public {
+        vm.deal(testWeth, 1e18);
+
+        assertEq(address(leverageZapRouter).balance, 0);
+
+        // send ETH from WETH, otherwise it will fail
+        vm.prank(testWeth);
+        payable(leverageZapRouter).call{value: address(testWeth).balance}("");
+
+        assertEq(address(leverageZapRouter).balance, 1e18);
+
+        vm.expectRevert("Must be owner");
+        leverageZapRouter.sweepETH();
+
+        assertEq(address(leverageZapRouter.owner()).balance, 0);
+
+        vm.prank(leverageZapRouter.owner());
+        leverageZapRouter.sweepETH();
+
+        assertEq(address(leverageZapRouter.owner()).balance, 1e18);
+    }
 }
