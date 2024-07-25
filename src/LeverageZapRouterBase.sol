@@ -15,7 +15,6 @@ import {IERC20} from "@ebtc/contracts/Dependencies/IERC20.sol";
 abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, ReentrancyGuard, IEbtcLeverageZapRouter {
     using SafeERC20 for IERC20;
 
-    uint256 internal constant PRECISION = 1e18;
     uint256 internal constant BPS = 10000;
 
     address public immutable theOwner;
@@ -135,13 +134,9 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         uint256 _flAmount,
         AdjustCdpOperation memory _cdp,
         uint256 debt,
-        uint256 coll,
         TradeData calldata _tradeData
     ) internal {
         uint256 newDebt = _cdp._isDebtIncrease ? debt + _cdp._EBTCChange : debt - _cdp._EBTCChange;
-        uint256 newColl = _cdp._stEthBalanceIncrease > 0 ? 
-            coll + stEth.getSharesByPooledEth(_cdp._stEthBalanceIncrease) : 
-            coll - stEth.getSharesByPooledEth(_cdp._stEthBalanceDecrease);
 
         _doOperation(
             _flType,
@@ -151,9 +146,8 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
             _getPostCheckParams(
                 _cdpId, 
                 newDebt, 
-                newColl, 
-                ICdpManagerData.Status.active,
-                _tradeData.collValidationBufferBPS
+                _tradeData.expectedCollateral, 
+                ICdpManagerData.Status.active
             ),
             _cdpId
         );
@@ -185,10 +179,8 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
             _getPostCheckParams(
                 _cdpId,
                 _cdp.eBTCToMint,
-                stETH.getSharesByPooledEth(_cdp.stETHToDeposit),
-                ICdpManagerData.Status.active,
-                _tradeData.collValidationBufferBPS
-
+                _tradeData.expectedCollateral,
+                ICdpManagerData.Status.active
             ),
             _cdpId
         );
@@ -221,7 +213,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
             _debt,
             op,
             PostOperationCheck.isClosed,
-            _getPostCheckParams(_cdpId, 0, 0, ICdpManagerData.Status.closedByOwner, 0),
+            _getPostCheckParams(_cdpId, 0, 0, ICdpManagerData.Status.closedByOwner),
             bytes32(0)
         );
 
@@ -257,15 +249,14 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
     function _getPostCheckParams(
         bytes32 _cdpId,
         uint256 _debt,
-        uint256 _totalCollateral,
-        ICdpManagerData.Status _status,
-        uint256 _collValidationBuffer
+        uint256 _expectedCollateral,
+        ICdpManagerData.Status _status
     ) internal view returns (PostCheckParams memory) {
         return
             PostCheckParams({
                 expectedDebt: CheckValueAndType({value: _debt, operator: Operator.equal}),
                 expectedCollateral: CheckValueAndType({
-                    value:  _totalCollateral * _collValidationBuffer / BPS,
+                    value: _expectedCollateral,
                     operator: Operator.gte
                 }),
                 cdpId: _cdpId,

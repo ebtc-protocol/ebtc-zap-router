@@ -34,8 +34,7 @@ abstract contract ZapRouterBase is IEbtcZapRouterBase {
     function _depositRawEthIntoLido(uint256 _initialETH) internal returns (uint256) {
         // check before-after balances for 1-wei corner case
         uint256 _balBefore = stEth.balanceOf(address(this));
-        // TODO call submit() with a referral?
-        payable(address(stEth)).call{value: _initialETH}("");
+        stEth.submit{value: _initialETH}(address(0));
         uint256 _deposit = stEth.balanceOf(address(this)) - _balBefore;
         return _deposit;
     }
@@ -43,10 +42,10 @@ abstract contract ZapRouterBase is IEbtcZapRouterBase {
     function _convertWrappedEthToStETH(uint256 _initialWETH) internal returns (uint256) {
         uint256 _wETHBalBefore = wrappedEth.balanceOf(address(this));
         wrappedEth.transferFrom(msg.sender, address(this), _initialWETH);
-        uint256 _wETHReiceived = wrappedEth.balanceOf(address(this)) - _wETHBalBefore;
+        uint256 _wETHReceived = wrappedEth.balanceOf(address(this)) - _wETHBalBefore;
 
         uint256 _rawETHBalBefore = address(this).balance;
-        IWrappedETH(address(wrappedEth)).withdraw(_wETHReiceived);
+        IWrappedETH(address(wrappedEth)).withdraw(_wETHReceived);
         uint256 _rawETHConverted = address(this).balance - _rawETHBalBefore;
         return _depositRawEthIntoLido(_rawETHConverted);
     }

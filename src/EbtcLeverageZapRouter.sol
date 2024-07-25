@@ -48,7 +48,6 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _upperHint,
             _lowerHint,
             _stEthLoanAmount,
-            _collVal,
             _stEthDepositAmount,
             _positionManagerPermit,
             _tradeData
@@ -91,7 +90,6 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _upperHint,
             _lowerHint,
             _stEthLoanAmount,
-            _collVal,
             _stEthDepositAmount,
             _positionManagerPermit,
             _tradeData
@@ -142,7 +140,6 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _upperHint,
             _lowerHint,
             _stEthLoanAmount,
-            _collVal,
             _stEthDepositAmount,
             _positionManagerPermit,
             _tradeData
@@ -185,7 +182,6 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
             _upperHint,
             _lowerHint,
             _stEthLoanAmount,
-            _collVal,
             _stEthDepositAmount,
             _positionManagerPermit,
             _tradeData
@@ -207,7 +203,6 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         bytes32 _upperHint,
         bytes32 _lowerHint,
         uint256 _stEthLoanAmount,
-        uint256 _stEthMarginAmount,
         uint256 _stEthDepositAmount,
         bytes calldata _positionManagerPermit,
         TradeData calldata _tradeData
@@ -340,8 +335,8 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         TradeData calldata _tradeData
     ) external payable {
         uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
-        if (_params.isStEthMarginIncrease && _params.stEthMarginBalance > 0) {
-            _params.stEthMarginBalance = _convertRawEthToStETH(_params.stEthMarginBalance);
+        if (_params.marginIncrease > 0) {
+            _params.marginIncrease = _convertRawEthToStETH(_params.marginIncrease);
         }
         _adjustCdp(_cdpId, _params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
     }
@@ -358,8 +353,8 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         TradeData calldata _tradeData
     ) external {
         uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
-        if (_params.isStEthMarginIncrease && _params.stEthMarginBalance > 0) {
-            _params.stEthMarginBalance = _convertWstEthToStETH(_params.stEthMarginBalance);
+        if (_params.marginIncrease > 0) {
+            _params.marginIncrease = _convertWstEthToStETH(_params.marginIncrease);
         }
         _adjustCdp(_cdpId, _params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
     }
@@ -376,8 +371,8 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         TradeData calldata _tradeData
     ) external {
         uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
-        if (_params.isStEthMarginIncrease && _params.stEthMarginBalance > 0) {
-            _params.stEthMarginBalance = _convertWrappedEthToStETH(_params.stEthMarginBalance);
+        if (_params.marginIncrease > 0) {
+            _params.marginIncrease = _convertWrappedEthToStETH(_params.marginIncrease);
         }
         _adjustCdp(_cdpId, _params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
     }
@@ -394,8 +389,8 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
         TradeData calldata _tradeData
     ) external {
         uint256 _zapStEthBalanceBefore = stEth.balanceOf(address(this));
-        if (_params.isStEthMarginIncrease && _params.stEthMarginBalance > 0) {
-            _params.stEthMarginBalance = _transferInitialStETHFromCaller(_params.stEthMarginBalance);
+        if (_params.marginIncrease > 0) {
+            _params.marginIncrease = _transferInitialStETHFromCaller(_params.marginIncrease);
         }
         _adjustCdp(_cdpId, _params, _positionManagerPermit, _tradeData, _zapStEthBalanceBefore);
     }
@@ -409,29 +404,22 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
     ) internal nonReentrant {
         require(msg.sender == _getOwnerAddress(_cdpId), "EbtcLeverageZapRouter: not owner for adjust!");
         _requireZeroOrMinAdjustment(_params.debtChange);
-        _requireZeroOrMinAdjustment(_params.stEthBalanceChange);
-        _requireZeroOrMinAdjustment(_params.stEthMarginBalance);
 
-        // get debt and coll amounts for post checks
-        (uint256 debt, uint256 coll) = ICdpManager(address(cdpManager)).getSyncedDebtAndCollShares(_cdpId);
+        // get debt amount for post checks, expectedCollateral is passed in through _tradeData
+        uint256 debt = ICdpManager(address(cdpManager)).getSyncedCdpDebt(_cdpId);
 
         if (_positionManagerPermit.length > 0) {
             PositionManagerPermit memory approval = abi.decode(_positionManagerPermit, (PositionManagerPermit));
             _permitPositionManagerApproval(borrowerOperations, approval);
         }
         
-        uint256 marginDecrease = _params.isStEthBalanceIncrease ? 0 : _params.stEthBalanceChange;
-        if (!_params.isStEthMarginIncrease && _params.stEthMarginBalance > 0) {
-            marginDecrease += _params.stEthMarginBalance;
-        }
+        uint256 totalBalanceDecrease = _params.isStEthBalanceIncrease ? 0 : _params.stEthBalanceChange;
+        uint256 totalBalanceIncrease = _params.isStEthBalanceIncrease ? _params.stEthBalanceChange : 0;
 
-        uint256 marginIncrease = _params.isStEthBalanceIncrease ? _params.stEthBalanceChange : 0;
-        if (_params.isStEthMarginIncrease && _params.stEthMarginBalance > 0) {
-            marginIncrease += _params.stEthMarginBalance;
-        }
-
-        _requireNonZeroAdjustment(marginIncrease, _params.debtChange, marginDecrease);
-        _requireSingularMarginChange(marginIncrease, marginDecrease);
+        _requireZeroOrMinAdjustment(totalBalanceDecrease);
+        _requireZeroOrMinAdjustment(totalBalanceIncrease);
+        _requireNonZeroAdjustment(totalBalanceIncrease, _params.debtChange, totalBalanceDecrease);
+        _requireSingularMarginChange(totalBalanceIncrease, totalBalanceDecrease);
 
         _adjustCdpOperation({
             _cdpId: _cdpId,
@@ -443,11 +431,10 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
                 _isDebtIncrease: _params.isDebtIncrease,
                 _upperHint: _params.upperHint,
                 _lowerHint: _params.lowerHint,
-                _stEthBalanceIncrease: marginIncrease,
-                _stEthBalanceDecrease: marginDecrease
+                _stEthBalanceIncrease: totalBalanceIncrease,
+                _stEthBalanceDecrease: totalBalanceDecrease
             }),
             debt: debt,
-            coll: coll,
             _tradeData: _tradeData
         });
         uint256 _zapStEthBalanceDiff = stEth.balanceOf(address(this)) - _zapStEthBalanceBefore;
@@ -464,5 +451,12 @@ contract EbtcLeverageZapRouter is LeverageZapRouterBase {
                 _zapStEthBalanceDiff
             );
         }
+    }
+
+    function sweepETH() public {
+        _assertOwner();
+
+        (bool success, ) = payable(msg.sender).call{value: address(this).balance}("");
+        require(success);
     }
 }
