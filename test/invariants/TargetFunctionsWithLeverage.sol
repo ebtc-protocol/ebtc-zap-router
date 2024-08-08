@@ -303,7 +303,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 _debtAmount + flashFee // Debt amount
             ),
             approvalAmount: _collAmount,
-            expectedCollateral: _expectedCollateral
+            expectedCollateral: 0
         });
     }
 
