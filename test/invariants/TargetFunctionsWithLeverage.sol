@@ -260,7 +260,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 _marginAmount,
                 _totalAmount,
                 abi.encode(pmPermit),
-                _getExactInDebtToCollateralTradeData(_debt, collateral.getSharesByPooledEth(_totalAmount))
+                _getExactInDebtToCollateralTradeData(_debt, _totalAmount)
             );
     }
 
@@ -279,7 +279,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 _amount // Debt amount
             ),
             approvalAmount: _amount,
-            expectedCollateral: _expectedCollateral * 95 / 100
+            expectedCollateral: 0
         });
     }
 
@@ -455,6 +455,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
         _adjustDebt(_cdpId, debt, coll, _debtChange, _isDebtIncrease, _marginIncrease);
     }
 
+    // @audit Inside this function we use `coll` as shares
     function _adjustDebt(
         bytes32 _cdpId,
         uint256 debt,
@@ -527,11 +528,13 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
             zapActorKey
         );
 
+        // This returns the amount of collateral equivalent to `_debtChange`, but doesn't return it in shares
         collValue = _debtToCollateral(_debtChange) + _marginIncrease;
         collValue = collValue * COLLATERAL_BUFFER / 10000;
 
         require(_isValidOperation(_debtChange, true, collValue, 0));
 
+        // Here we get shares but we 
         uint256 expectedColl = cdpManager.getSyncedCdpCollShares(_cdpId) + collValue;
 
         success = _adjustCdpInternal(
@@ -544,7 +547,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 true,
                 _marginIncrease
             ),
-            _getExactInDebtToCollateralTradeData(_debtChange, expectedColl)
+            _getExactInDebtToCollateralTradeData(_debtChange, collateral.getPooledEthByShares(expectedColl))
         );
     }
 
