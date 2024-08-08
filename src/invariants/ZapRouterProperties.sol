@@ -31,4 +31,8 @@ abstract contract ZapRouterProperties is
     function echidna_ZR_05() public returns (bool) {
         return IERC20(testWstEth).balanceOf(address(zapRouter)) == 0;
     }
+
+    function echidna_ZR_06() public returns (bool) {
+        return collateral.balanceOf(address(zapRouter)) == 0;
+    }
 }
