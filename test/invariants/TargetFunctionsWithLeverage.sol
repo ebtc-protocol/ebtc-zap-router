@@ -279,7 +279,7 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 _amount // Debt amount
             ),
             approvalAmount: _amount,
-            expectedCollateral: _expectedCollateral
+            expectedCollateral: _expectedCollateral * 95 / 100
         });
     }
 
