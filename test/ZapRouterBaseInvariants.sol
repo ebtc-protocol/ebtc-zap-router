@@ -61,7 +61,8 @@ contract ZapRouterBaseInvariants is
             dex: address(mockDex),
             owner: defaultGovernance,
             zapFeeBPS: defaultZapFee,
-            zapFeeReceiver: testFeeReceiver
+            zapFeeReceiver: testFeeReceiver,
+            approvalTarget: address(mockDex)
         }));
         TEST_FIXED_USER = _createUserFromPrivateKey(userPrivateKey);
     }

@@ -59,7 +59,8 @@ abstract contract TargetFunctionsWithLeverage is TargetFunctionsBase {
                 dex: address(mockDex),
                 owner: defaultGovernance,
                 zapFeeBPS: defaultZapFee,
-                zapFeeReceiver: testFeeReceiver
+                zapFeeReceiver: testFeeReceiver,
+                approvalTarget: address(mockDex)
             })
         );
     }
