@@ -17,6 +17,7 @@ interface IEbtcLeverageZapRouter is IEbtcZapRouterBase {
         address owner;
         uint256 zapFeeBPS;
         address zapFeeReceiver;
+        address approvalTarget;
     }
 
     struct AdjustCdpParams {

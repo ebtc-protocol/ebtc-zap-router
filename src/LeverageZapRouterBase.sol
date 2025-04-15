@@ -19,6 +19,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
 
     address public immutable theOwner;
     address public immutable DEX;
+    address public immutable APPROVAL_TARGET;
     uint256 public immutable zapFeeBPS;
     address public immutable zapFeeReceiver;
 
@@ -49,6 +50,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         DEX = params.dex;
         zapFeeBPS = params.zapFeeBPS;
         zapFeeReceiver = params.zapFeeReceiver;
+        APPROVAL_TARGET = params.approvalTarget;
 
         // Infinite Approvals @TODO: do these stay at max for each token?
         ebtcToken.approve(address(borrowerOperations), type(uint256).max);
@@ -229,7 +231,7 @@ abstract contract LeverageZapRouterBase is ZapRouterBase, LeverageMacroBase, Ree
         swaps = new SwapOperation[](1);
 
         swaps[0].tokenForSwap = _tokenIn;
-        swaps[0].addressForApprove = DEX;
+        swaps[0].addressForApprove = APPROVAL_TARGET;
         swaps[0].exactApproveAmount = _tradeData.approvalAmount;
         swaps[0].addressForSwap = DEX;
         swaps[0].calldataForSwap = _tradeData.exchangeData;
